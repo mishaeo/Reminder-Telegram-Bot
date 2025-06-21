@@ -1,33 +1,26 @@
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message
 from aiogram.filters import CommandStart, Command
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from datetime import datetime
+from apscheduler.triggers.date import DateTrigger
+import asyncio
 
-import keyboards as kb
+from database import create_or_update_user
+from bot_instance import bot
+
 
 router = Router()
+
+scheduler = AsyncIOScheduler()
 
 class Reminder(StatesGroup):
     date = State()
     time = State()
     person_message = State()
     user_id = State()
-
-months = {
-    '01': 'января',
-    '02': 'февраля',
-    '03': 'марта',
-    '04': 'апреля',
-    '05': 'мая',
-    '06': 'июня',
-    '07': 'июля',
-    '08': 'августа',
-    '09': 'сентября',
-    '10': 'октября',
-    '11': 'ноября',
-    '12': 'декабря'
-}
 
 @router.message(CommandStart())
 async def start(message: Message):
@@ -58,7 +51,7 @@ async def remember_message(message: Message, state: FSMContext):
 
     await state.update_data(person_message=person_message)
 
-    await message.answer("Enter the date when the bot should remind you:")
+    await message.answer("Enter the date when the bot should remind you: (year-month-day)")
     await state.set_state(Reminder.date)
 
 @router.message(Reminder.date)
@@ -67,8 +60,14 @@ async def remember_date(message: Message, state: FSMContext):
 
     await state.update_data(date=date)
 
-    await message.answer("Enter the time when the bot should remind you:")
+    await message.answer("Enter the time when the bot should remind you: (hour:minutes)")
     await state.set_state(Reminder.time)
+
+async def send_reminder(telegram_id: int, message: str):
+    try:
+        await bot.send_message(telegram_id, f"🔔 Напоминание: {message}")
+    except Exception as e:
+        print(f"Ошибка при отправке напоминания: {e}")
 
 @router.message(Reminder.time)
 async def remember_message(message: Message, state: FSMContext):
@@ -82,4 +81,23 @@ async def remember_message(message: Message, state: FSMContext):
     person_message = data.get('person_message')
     time = data.get('time')
 
-    await message.answer(f"Your telegram_id: {user_id}\n Your message: {person_message}\n Your date: {date}\n Your time: {time}")
+    await message.answer(f"### ОТЛАДКА ###\n Your telegram_id: {user_id}\n Your message: {person_message}\n Your date: {date}\n Your time: {time}")
+
+    await create_or_update_user(
+        telegram_id=user_id,
+        time=time,
+        date=date,
+        message=person_message
+    )
+
+    await state.clear()
+
+    remind_datetime = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+
+    scheduler.add_job(
+        send_reminder,
+        trigger=DateTrigger(run_date=remind_datetime),
+        args=[user_id, person_message],
+        id=f"{user_id}_{remind_datetime}",
+        replace_existing=True
+    )
