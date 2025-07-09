@@ -3,7 +3,7 @@ import logging
 import sys
 
 from aiogram import Bot, Dispatcher
-from handlers import router 
+from handlers import router
 from config import BOT_TOKEN
 
 # Главная асинхронная функция

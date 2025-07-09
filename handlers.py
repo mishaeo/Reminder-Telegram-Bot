@@ -1,8 +1,10 @@
+import asyncio
 from aiogram import Router
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from datetime import datetime
 
 class user_remind(StatesGroup):
     name_remind = State()
@@ -10,6 +12,17 @@ class user_remind(StatesGroup):
     message_remind = State()
 
 router = Router()
+
+async def schedule_message(name_remind, message_remind, time_remind, message: Message):
+    target_time = datetime.strptime(time_remind, '%Y-%m-%d %H:%M')
+    await message.answer(f"Сообщение {name_remind} будет отправлено в {target_time}")
+
+    while True:
+        now = datetime.now().replace(second=0, microsecond=0)
+        if now >= target_time:
+            await message.answer(f"Сообщение: {name_remind} с содержымим {message_remind} (отправлено в {now.strftime('%Y-%m-%d %H:%M')})")
+            break
+        await asyncio.sleep(1)
 
 @router.message(CommandStart())
 async def handler_start(message: Message):
@@ -56,4 +69,6 @@ async def handler_output(message: Message, state: FSMContext):
     time_remind = data.get('time_remind')
     name_remind = data.get('name_remind')
 
-    await message.answer(f"Your name of remind: {name_remind}\n Your time of remind: {time_remind}\n Your message of remind: {message_remind}")
+    # await message.answer(f" Your name of remind: {name_remind}\n Your time of remind: {time_remind}\n Your message of remind: {message_remind}")
+
+    asyncio.create_task(schedule_message(name_remind, message_remind, time_remind, message))
