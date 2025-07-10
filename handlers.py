@@ -8,6 +8,8 @@ from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
 from aiogram import Bot
 
+from database import create_user_remind, get_user_reminders
+
 
 class user_remind(StatesGroup):
     name_remind = State()
@@ -43,8 +45,25 @@ async def handler_help(message: Message):
         parse_mode="HTML"
     )
 
+@router.message(Command('list'))
+async def list_reminders(message: Message):
+    telegram_id = message.from_user.id
+    reminders = await get_user_reminders(telegram_id)
 
+    if not reminders:
+        await message.answer("🗒 У вас пока нет напоминаний.")
+        return
 
+    response = "📋 Ваши напоминания:\n\n"
+    for r in reminders:
+        response += (
+            f"🆔 {r['id']}\n"
+            f"📌 {r['title']}\n"
+            f"⏰ {r['reminder_time']}\n"
+            f"💬 {r['message'] or '—'}\n\n"
+        )
+
+    await message.answer(response)
 
 @router.message(Command("remind"))
 async def handler_select_name_remind(message: Message, state: FSMContext):
@@ -121,6 +140,8 @@ async def handler_select_message_remind(message: Message, state: FSMContext, bot
 
 @router.message(user_remind.message_remind)
 async def handler_output(message: Message, state: FSMContext, bot: Bot):
+    telegram_id = message.from_user.id
+
     data = await state.get_data()
     reminder_message_id = data.get("reminder_message_id")
 
@@ -150,5 +171,12 @@ async def handler_output(message: Message, state: FSMContext, bot: Bot):
         )
     except Exception as e:
         await message.answer("❗ Failed to update message.")
+
+    await create_user_remind(
+        telegram_id=telegram_id,
+        title=name_remind,
+        reminder_time=time_remind,
+        message=message_remind
+    )
 
     asyncio.create_task(schedule_message(name_remind, message_remind, time_remind, message))
