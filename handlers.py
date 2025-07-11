@@ -11,7 +11,6 @@ from aiogram import Bot
 from database import create_user_remind, get_user_reminders, delete_reminder_by_id
 import keyboards as kb
 
-
 class user_remind(StatesGroup):
     name_remind = State()
     time_remind = State()
@@ -21,7 +20,8 @@ class user_remind(StatesGroup):
 
 router = Router()
 
-async def schedule_message(name_remind, message_remind, time_remind, message: Message):
+# Command to display a reminder
+async def command_display_reminder(name_remind, message_remind, time_remind, message: Message):
     target_time = datetime.strptime(time_remind, '%Y-%m-%d %H:%M')
 
     while True:
@@ -34,12 +34,14 @@ async def schedule_message(name_remind, message_remind, time_remind, message: Me
             break
         await asyncio.sleep(1)
 
+# Command start
 @router.message(CommandStart())
-async def handler_start(message: Message):
+async def command_start(message: Message):
     await message.answer('👋 Welcome to the Reminder Bot! Press /help to find out what this bot can do!')
 
+# Command help
 @router.message(Command("help"))
-async def handler_help(message: Message):
+async def command_help(message: Message):
     await message.answer(
         "ℹ️ <b>Help Menu</b>\n\n"
         "🚀 <b>/start</b> — Start interacting with the bot\n"
@@ -47,9 +49,9 @@ async def handler_help(message: Message):
         "❓ <b>/help</b> — Show this help menu",
         parse_mode="HTML"
     )
-
+# Command list
 @router.message(Command('list'))
-async def list_reminders(message: Message, state: FSMContext):
+async def command_list(message: Message, state: FSMContext):
     telegram_id = message.from_user.id
     reminders = await get_user_reminders(telegram_id)
 
@@ -65,8 +67,9 @@ async def list_reminders(message: Message, state: FSMContext):
 
     await message.answer(response, reply_markup=kb.remind_keyboard)
 
+# Command show
 @router.callback_query(F.data == "show")
-async def handle_show_start(callback: CallbackQuery, state: FSMContext):
+async def command_show(callback: CallbackQuery, state: FSMContext):
     telegram_id = callback.from_user.id
     reminders = await get_user_reminders(telegram_id)
 
@@ -85,8 +88,9 @@ async def handle_show_start(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Введите номер напоминания, которое хотите просмотреть:")
     await state.set_state(user_remind.show_index)
 
+# Handler for command show
 @router.message(user_remind.show_index)
-async def handle_show_by_index(message: Message, state: FSMContext):
+async def handler_show(message: Message, state: FSMContext):
     data = await state.get_data()
     reminders = data.get("full_reminders", [])
 
@@ -109,14 +113,16 @@ async def handle_show_by_index(message: Message, state: FSMContext):
 
     await state.clear()
 
+# Command delete
 @router.callback_query(F.data == "delete")
-async def handle_delete_start(callback: CallbackQuery, state: FSMContext):
+async def command_delete(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.answer("🗑 Введите номер напоминания, которое хотите удалить:")
     await state.set_state(user_remind.delete_index)
 
+# Handler for command delete
 @router.message(user_remind.delete_index)
-async def handle_delete_by_index(message: Message, state: FSMContext):
+async def handler_delete(message: Message, state: FSMContext):
     data = await state.get_data()
     reminder_ids = data.get("reminder_ids")
 
@@ -133,8 +139,9 @@ async def handle_delete_by_index(message: Message, state: FSMContext):
 
     await state.clear()
 
+# Command create
 @router.callback_query(F.data == "create")
-async def handler_select_name_remind(callback: CallbackQuery, state: FSMContext):
+async def command_create(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
     sent_msg = await callback.message.answer(
@@ -148,8 +155,9 @@ async def handler_select_name_remind(callback: CallbackQuery, state: FSMContext)
     await state.update_data(reminder_message_id=sent_msg.message_id)
     await state.set_state(user_remind.name_remind)
 
+# Handler for command create, handler for a name of reminder
 @router.message(user_remind.name_remind)
-async def handler_select_time_remind(message: Message, state: FSMContext, bot: Bot):
+async def handler_create_name(message: Message, state: FSMContext, bot: Bot):
     name_remind = message.text
 
     if len(name_remind) > 20:
@@ -182,8 +190,9 @@ async def handler_select_time_remind(message: Message, state: FSMContext, bot: B
 
     await state.set_state(user_remind.time_remind)
 
+# Handler for command create, handler for a date of reminder
 @router.message(user_remind.time_remind)
-async def handler_select_message_remind(message: Message, state: FSMContext, bot: Bot):
+async def handler_create_date(message: Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     reminder_message_id = data.get("reminder_message_id")
     name_remind = data.get('name_remind')
@@ -220,8 +229,9 @@ async def handler_select_message_remind(message: Message, state: FSMContext, bot
 
     await state.set_state(user_remind.message_remind)
 
+# Handler for command create, handler for a message of reminder
 @router.message(user_remind.message_remind)
-async def handler_output(message: Message, state: FSMContext, bot: Bot):
+async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
     telegram_id = message.from_user.id
 
     data = await state.get_data()
@@ -261,6 +271,6 @@ async def handler_output(message: Message, state: FSMContext, bot: Bot):
         message=message_remind
     )
 
-    asyncio.create_task(schedule_message(name_remind, message_remind, time_remind, message))
+    asyncio.create_task(command_display_reminder(name_remind, message_remind, time_remind, message))
 
     await state.clear()
