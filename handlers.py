@@ -74,18 +74,18 @@ async def command_show(callback: CallbackQuery, state: FSMContext):
     reminders = await get_user_reminders(telegram_id)
 
     if not reminders:
-        await callback.message.answer("🗒 У вас пока нет напоминаний.")
+        await callback.message.answer("🗒 You don't have any reminders yet.")
         return
 
     await state.update_data(reminder_ids=[r['id'] for r in reminders])
-    await state.update_data(full_reminders=reminders)  # сохраняем сами объекты напоминаний
+    await state.update_data(full_reminders=reminders)
 
-    response = "🔍 Ваши напоминания:\n\n"
+    response = "<b>📋 Your reminders:</b>\n\n"
     for i, r in enumerate(reminders, start=1):
         response += f"{i}. 📌 {r['title']} — {r['reminder_time']}\n"
 
     await callback.message.answer(response)
-    await callback.message.answer("Введите номер напоминания, которое хотите просмотреть:")
+    await callback.message.answer("Enter the number of the reminder you want to view:")
     await state.set_state(user_remind.show_index)
 
 # Handler for command show
@@ -103,13 +103,13 @@ async def handler_show(message: Message, state: FSMContext):
 
         response = (
             f"📌 <b>{reminder['title']}</b>\n"
-            f"⏰ <b>Время:</b> {reminder['reminder_time']}\n"
-            f"💬 <b>Сообщение:</b> {reminder['message']}"
+            f"⏰ <b>Time:</b> {reminder['reminder_time']}\n"
+            f"💬 <b>Message:</b> {reminder['message']}"
         )
         await message.answer(response, parse_mode="HTML")
 
     except (ValueError, IndexError):
-        await message.answer("❌ Неверный номер. Попробуйте снова.")
+        await message.answer("❌ Invalid number. Try again.")
 
     await state.clear()
 
@@ -117,7 +117,21 @@ async def handler_show(message: Message, state: FSMContext):
 @router.callback_query(F.data == "delete")
 async def command_delete(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    await callback.message.answer("🗑 Введите номер напоминания, которое хотите удалить:")
+    telegram_id = callback.from_user.id
+
+    reminders = await get_user_reminders(telegram_id)
+    if not reminders:
+        await callback.message.answer("🗒 You don't have any reminders yet.")
+        return
+
+    await state.update_data(reminder_ids=[r['id'] for r in reminders])
+
+    response = "<b>📋 Your reminders:</b>\n\n"
+    for i, r in enumerate(reminders, start=1):
+        response += f"{i}. 📌 {r['title']} — {r['reminder_time']}\n"
+
+    await callback.message.answer(response, parse_mode="HTML")
+    await callback.message.answer("Enter the number of the reminder you want to delete:")
     await state.set_state(user_remind.delete_index)
 
 # Handler for command delete
@@ -133,9 +147,9 @@ async def handler_delete(message: Message, state: FSMContext):
 
         reminder_id = reminder_ids[index]
         await delete_reminder_by_id(reminder_id)
-        await message.answer("✅ Напоминание успешно удалено.")
+        await message.answer("✅ The reminder has been successfully removed.")
     except (ValueError, IndexError):
-        await message.answer("❌ Неверный номер. Попробуйте снова.")
+        await message.answer("❌ Invalid number. Try again.")
 
     await state.clear()
 
