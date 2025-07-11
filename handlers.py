@@ -142,7 +142,7 @@ async def handler_select_name_remind(callback: CallbackQuery, state: FSMContext)
         '<b>❌ | 📝 Reminder name: </b>\n'
         '<b>❌ | ⏰ Time to receive reminder: </b>\n'
         '<b>❌ | 💬 Reminder message: </b>\n\n'
-        '<b># Please select the name of the reminder #</b>',
+        '<b># Please select the name of the reminder, no more than 20 characters #</b>',
         parse_mode=ParseMode.HTML
     )
     await state.update_data(reminder_message_id=sent_msg.message_id)
@@ -150,10 +150,16 @@ async def handler_select_name_remind(callback: CallbackQuery, state: FSMContext)
 
 @router.message(user_remind.name_remind)
 async def handler_select_time_remind(message: Message, state: FSMContext, bot: Bot):
+    name_remind = message.text
+
+    if len(name_remind) > 20:
+        await message.answer(
+            "❌ The reminder name must not exceed 20 characters. Please enter a shorter name.")
+        return
+
     data = await state.get_data()
     reminder_message_id = data.get("reminder_message_id")
 
-    name_remind = message.text
     await state.update_data(name_remind=name_remind)
 
     new_text = (
@@ -180,11 +186,17 @@ async def handler_select_time_remind(message: Message, state: FSMContext, bot: B
 async def handler_select_message_remind(message: Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     reminder_message_id = data.get("reminder_message_id")
-
-    data = await state.get_data()
     name_remind = data.get('name_remind')
 
-    time_remind = message.text
+    time_remind = message.text.strip()
+
+    try:
+        datetime.strptime(time_remind, '%Y-%m-%d %H:%M')
+    except ValueError:
+        await message.answer("❌ Invalid time format. Please enter in format: <b>YYYY-MM-DD HH:MM</b>",
+                             parse_mode="HTML")
+        return
+
     await state.update_data(time_remind=time_remind)
 
     new_text = (
