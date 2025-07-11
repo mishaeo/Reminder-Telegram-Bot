@@ -17,6 +17,7 @@ class user_remind(StatesGroup):
     time_remind = State()
     message_remind = State()
     delete_index = State()
+    show_index = State()
 
 router = Router()
 
@@ -27,9 +28,9 @@ async def schedule_message(name_remind, message_remind, time_remind, message: Me
         now = datetime.now().replace(second=0, microsecond=0)
         if now >= target_time:
             await message.answer(
-                f"Ваше сообщение: {name_remind}\n "
+                f"Your reminder: {name_remind}\n "
                 f"{message_remind}\n"
-                f"(отправлено в {now.strftime('%Y-%m-%d %H:%M')})")
+                f"(Sent at {now.strftime('%Y-%m-%d %H:%M')})")
             break
         await asyncio.sleep(1)
 
@@ -53,21 +54,65 @@ async def list_reminders(message: Message, state: FSMContext):
     reminders = await get_user_reminders(telegram_id)
 
     if not reminders:
-        await message.answer("🗒 У вас пока нет напоминаний.")
+        await message.answer("🗒 You don't have any reminders yet.")
         return
 
     await state.update_data(reminder_ids=[r['id'] for r in reminders])
 
-    response = "📋 Ваши напоминания:\n\n"
+    response = "📋 Your reminders:\n\n"
     for i, r in enumerate(reminders, start=1):
         response += f"{i}. 📌 {r['title']} — {r['reminder_time']}\n"
 
     await message.answer(response, reply_markup=kb.remind_keyboard)
 
+@router.callback_query(F.data == "show")
+async def handle_show_start(callback: CallbackQuery, state: FSMContext):
+    telegram_id = callback.from_user.id
+    reminders = await get_user_reminders(telegram_id)
+
+    if not reminders:
+        await callback.message.answer("🗒 У вас пока нет напоминаний.")
+        return
+
+    await state.update_data(reminder_ids=[r['id'] for r in reminders])
+    await state.update_data(full_reminders=reminders)  # сохраняем сами объекты напоминаний
+
+    response = "🔍 Ваши напоминания:\n\n"
+    for i, r in enumerate(reminders, start=1):
+        response += f"{i}. 📌 {r['title']} — {r['reminder_time']}\n"
+
+    await callback.message.answer(response)
+    await callback.message.answer("Введите номер напоминания, которое хотите просмотреть:")
+    await state.set_state(user_remind.show_index)
+
+@router.message(user_remind.show_index)
+async def handle_show_by_index(message: Message, state: FSMContext):
+    data = await state.get_data()
+    reminders = data.get("full_reminders", [])
+
+    try:
+        index = int(message.text.strip()) - 1
+        if index < 0 or index >= len(reminders):
+            raise ValueError
+
+        reminder = reminders[index]
+
+        response = (
+            f"📌 <b>{reminder['title']}</b>\n"
+            f"⏰ <b>Время:</b> {reminder['reminder_time']}\n"
+            f"💬 <b>Сообщение:</b> {reminder['message']}"
+        )
+        await message.answer(response, parse_mode="HTML")
+
+    except (ValueError, IndexError):
+        await message.answer("❌ Неверный номер. Попробуйте снова.")
+
+    await state.clear()
+
 @router.callback_query(F.data == "delete")
 async def handle_delete_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    await callback.message.answer("🗑 Введите номер напоминания, которое хотите удалить (например: 2):")
+    await callback.message.answer("🗑 Введите номер напоминания, которое хотите удалить:")
     await state.set_state(user_remind.delete_index)
 
 @router.message(user_remind.delete_index)
