@@ -60,4 +60,12 @@ async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
 
     return reminders
 
+async def delete_reminder_by_id(reminder_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("""
+            DELETE FROM reminders WHERE id = ?
+        """, (reminder_id,))
+        await db.commit()
+
+
 
