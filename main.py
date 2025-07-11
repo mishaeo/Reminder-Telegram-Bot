@@ -18,8 +18,6 @@ async def reminder_cleaner():
         except Exception as e:
             print(f"[Cleaner] Exception occurred: {e}")
 
-
-
 # Главная асинхронная функция
 async def main():
     await init_db()

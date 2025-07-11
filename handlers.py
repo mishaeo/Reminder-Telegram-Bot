@@ -1,14 +1,15 @@
 import asyncio
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
 from aiogram import Bot
 
 from database import create_user_remind, get_user_reminders
+import keyboards as kb
 
 
 class user_remind(StatesGroup):
@@ -25,7 +26,7 @@ async def schedule_message(name_remind, message_remind, time_remind, message: Me
         now = datetime.now().replace(second=0, microsecond=0)
         if now >= target_time:
             await message.answer(
-                f"Сообщение: {name_remind}\n "
+                f"Ваше сообщение: {name_remind}\n "
                 f"{message_remind}\n"
                 f"(отправлено в {now.strftime('%Y-%m-%d %H:%M')})")
             break
@@ -39,8 +40,9 @@ async def handler_start(message: Message):
 async def handler_help(message: Message):
     await message.answer(
         "ℹ️ <b>Help Menu</b>\n\n"
-        "🧾 <b>/start</b> — Start interacting with the bot\n"
-        "🧾 <b>/remind</b> - Set a reminder\n"
+        "🚀 <b>/start</b> — Start interacting with the bot\n"
+        "⏰ <b>/remind</b> — Set a reminder\n"
+        "📋 <b>/list</b> — Shows the current reminders\n"
         "❓ <b>/help</b> — Show this help menu",
         parse_mode="HTML"
     )
@@ -55,19 +57,16 @@ async def list_reminders(message: Message):
         return
 
     response = "📋 Ваши напоминания:\n\n"
-    for r in reminders:
-        response += (
-            f"🆔 {r['id']}\n"
-            f"📌 {r['title']}\n"
-            f"⏰ {r['reminder_time']}\n"
-            f"💬 {r['message'] or '—'}\n\n"
-        )
+    for i, r in enumerate(reminders, start=1):
+        response += f"{i}. 📌 {r['title']}\n"
 
-    await message.answer(response)
+    await message.answer(response, reply_markup=kb.remind_keyboard)
 
-@router.message(Command("remind"))
-async def handler_select_name_remind(message: Message, state: FSMContext):
-    sent_msg = await message.answer(
+@router.callback_query(F.data == "create")
+async def handler_select_name_remind(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+
+    sent_msg = await callback.message.answer(
         '<b>📌 Create a new reminder</b>\n\n'
         '<b>❌ | 📝 Reminder name: </b>\n'
         '<b>❌ | ⏰ Time to receive reminder: </b>\n'
@@ -180,3 +179,5 @@ async def handler_output(message: Message, state: FSMContext, bot: Bot):
     )
 
     asyncio.create_task(schedule_message(name_remind, message_remind, time_remind, message))
+
+    await state.clear()
