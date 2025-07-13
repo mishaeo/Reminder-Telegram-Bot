@@ -13,7 +13,7 @@ from config import BOT_TOKEN
 from database import init_db, delete_expired_reminders
 
 # Получаем переменные окружения
-APP_URL = os.getenv("APP_URL")  # Например: https://yourapp.up.railway.app
+APP_URL = os.getenv("APP_URL").rstrip("/")
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 WEBHOOK_URL = f"{APP_URL}{WEBHOOK_PATH}"
 
