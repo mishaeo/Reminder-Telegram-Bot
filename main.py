@@ -1,38 +1,56 @@
 import asyncio
 import logging
 import sys
+import os
 
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
+
 from handlers import router
 from config import BOT_TOKEN
 from database import init_db, delete_expired_reminders
 
-# Функция удаления просроченных сообщений каждую минуту
+# Получаем переменные окружения
+APP_URL = os.getenv("APP_URL")  # Например: https://yourapp.up.railway.app
+WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
+WEBHOOK_URL = f"{APP_URL}{WEBHOOK_PATH}"
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
+dp.include_router(router)
+
+# Запуск задачи очистки напоминаний
 async def reminder_cleaner():
     while True:
         try:
             print("[Cleaner] Running delete_expired_reminders()...")
             await delete_expired_reminders()
-            print("[Cleaner] Waiting 60 seconds...")
             await asyncio.sleep(60)
         except Exception as e:
             print(f"[Cleaner] Exception occurred: {e}")
 
-# Главная асинхронная функция
-async def main():
+# Webhook и запуск aiohttp
+async def on_startup(app):
     await init_db()
-    bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher()
-    dp.include_router(router)
-
+    await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(reminder_cleaner())
+    print(f"[Webhook] Установлен: {WEBHOOK_URL}")
 
-    await dp.start_polling(bot)
+async def on_shutdown(app):
+    await bot.delete_webhook()
+    print("[Webhook] Удалён")
 
-# Точка входа при запуске скрипта
+def create_app():
+    app = web.Application()
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+    return app
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logging.info('Bot is off')
+    web.run_app(create_app(), host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
