@@ -1,5 +1,4 @@
 aiogram
 dotenv
 aiosqlite
-flask
 aiohttp

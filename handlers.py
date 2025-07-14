@@ -55,17 +55,17 @@ async def command_list(message: Message, state: FSMContext):
     telegram_id = message.from_user.id
     reminders = await get_user_reminders(telegram_id)
 
-    if not reminders:
-        await message.answer("🗒 You don't have any reminders yet.")
-        return
+    if reminders:
+        await state.update_data(reminder_ids=[r['id'] for r in reminders])
 
-    await state.update_data(reminder_ids=[r['id'] for r in reminders])
-
-    response = "📋 Your reminders:\n\n"
-    for i, r in enumerate(reminders, start=1):
-        response += f"{i}. 📌 {r['title']} — {r['reminder_time']}\n"
+        response = "📋 Your reminders:\n\n"
+        for i, r in enumerate(reminders, start=1):
+            response += f"{i}. 📌 {r['title']} — {r['reminder_time']}\n"
+    else:
+        response = "🗒 You don't have any reminders yet."
 
     await message.answer(response, reply_markup=kb.remind_keyboard)
+
 
 # Command show
 @router.callback_query(F.data == "show")
