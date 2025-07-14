@@ -1,71 +1,94 @@
-import aiosqlite
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, Integer, String, DateTime, select, delete
 from datetime import datetime
 from typing import List, Dict, Any
+import os
 
-DB_NAME = "database.db"
+# Получаем DATABASE_URL из переменных окружения
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Создаём движок
+engine = create_async_engine(DATABASE_URL, echo=False)
+
+# Создаём сессию
+async_session = async_sessionmaker(
+    bind=engine,
+    expire_on_commit=False
+)
+
+# Базовый класс
+Base = declarative_base()
+
+
+# Модель
+class Reminder(Base):
+    __tablename__ = "reminders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telegram_id = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    reminder_time = Column(DateTime, nullable=False)
+    message = Column(String)
+
+
+# Инициализация БД
 async def init_db():
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS reminders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            telegram_id TEXT NOT NULL,
-            title TEXT NOT NULL,
-            reminder_time DATETIME NOT NULL,
-            message TEXT
-        )
-        """)
-        await db.commit()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
+# Создание напоминания
 async def create_user_remind(telegram_id: int, title: str, reminder_time: datetime, message: str):
     if isinstance(reminder_time, str):
         reminder_time = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M")
 
-    formatted_time = reminder_time.replace(second=0).strftime("%Y-%m-%d %H:%M:%S")
+    reminder = Reminder(
+        telegram_id=str(telegram_id),
+        title=title,
+        reminder_time=reminder_time.replace(second=0, microsecond=0),
+        message=message
+    )
 
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("""
-            INSERT INTO reminders (telegram_id, title, reminder_time, message)
-            VALUES (?, ?, ?, ?)
-        """, (telegram_id, title, formatted_time, message))
-        await db.commit()
+    async with async_session() as session:
+        session.add(reminder)
+        await session.commit()
 
+
+# Удаление просроченных напоминаний
 async def delete_expired_reminders():
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute("""
-            DELETE FROM reminders WHERE reminder_time <= datetime('now', 'localtime')
-        """)
-        await db.commit()
-        print(f"[Cleaner] Deleted {cursor.rowcount} expired reminders")
+    async with async_session() as session:
+        stmt = delete(Reminder).where(Reminder.reminder_time <= datetime.now())
+        result = await session.execute(stmt)
+        await session.commit()
+        print(f"[Cleaner] Deleted {result.rowcount} expired reminders")
 
+
+# Получение напоминаний пользователя
 async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute("""
-            SELECT id, title, reminder_time, message
-            FROM reminders
-            WHERE telegram_id = ?
-            ORDER BY reminder_time ASC
-        """, (telegram_id,))
-        rows = await cursor.fetchall()
+    async with async_session() as session:
+        stmt = select(Reminder).where(Reminder.telegram_id == str(telegram_id)).order_by(Reminder.reminder_time)
+        result = await session.execute(stmt)
+        reminders = result.scalars().all()
 
-    reminders = []
-    for row in rows:
-        reminders.append({
-            "id": row[0],
-            "title": row[1],
-            "reminder_time": row[2],
-            "message": row[3]
-        })
+        return [
+            {
+                "id": r.id,
+                "title": r.title,
+                "reminder_time": r.reminder_time.strftime("%Y-%m-%d %H:%M"),
+                "message": r.message
+            }
+            for r in reminders
+        ]
 
-    return reminders
 
+# Удаление напоминания по ID
 async def delete_reminder_by_id(reminder_id: int):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("""
-            DELETE FROM reminders WHERE id = ?
-        """, (reminder_id,))
-        await db.commit()
+    async with async_session() as session:
+        stmt = delete(Reminder).where(Reminder.id == reminder_id)
+        await session.execute(stmt)
+        await session.commit()
+
 
 
 

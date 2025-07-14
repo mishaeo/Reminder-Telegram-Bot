@@ -1,4 +1,6 @@
 aiogram
 dotenv
-aiosqlite
 aiohttp
+sqlalchemy[asyncio]
+asyncpg
+
