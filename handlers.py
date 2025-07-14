@@ -20,20 +20,6 @@ class user_remind(StatesGroup):
 
 router = Router()
 
-# Command to display a reminder
-async def command_display_reminder(name_remind, message_remind, time_remind, message: Message):
-    target_time = datetime.strptime(time_remind, '%Y-%m-%d %H:%M')
-
-    while True:
-        now = datetime.now().replace(second=0, microsecond=0)
-        if now >= target_time:
-            await message.answer(
-                f"Your reminder: {name_remind}\n "
-                f"{message_remind}\n"
-                f"(Sent at {now.strftime('%Y-%m-%d %H:%M')})")
-            break
-        await asyncio.sleep(1)
-
 # Command start
 @router.message(CommandStart())
 async def command_start(message: Message):
@@ -285,7 +271,5 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
         reminder_time=time_remind,
         message=message_remind
     )
-
-    asyncio.create_task(command_display_reminder(name_remind, message_remind, time_remind, message))
 
     await state.clear()

@@ -20,4 +20,4 @@ async def reminder_loop(bot: Bot):
         except Exception as e:
             print(f"[reminder_loop ERROR] {e}")
 
-        await asyncio.sleep(60)  # Проверять каждую минуту
+        await asyncio.sleep(60)

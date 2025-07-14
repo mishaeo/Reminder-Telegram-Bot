@@ -11,7 +11,7 @@ from aiohttp import web
 from handlers import router
 from config import BOT_TOKEN
 from database import init_db
-from tasks import reminder_loop  # ✅ импортируем из tasks
+from tasks import reminder_loop
 
 # Получаем переменные окружения
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
@@ -26,7 +26,7 @@ dp.include_router(router)
 async def on_startup(app):
     await init_db()
     await bot.set_webhook(WEBHOOK_URL)
-    asyncio.create_task(reminder_loop(bot))  # ✅ запускаем фоновую задачу
+    asyncio.create_task(reminder_loop(bot))
     print(f"[Webhook] Установлен: {WEBHOOK_URL}")
 
 async def on_shutdown(app):
