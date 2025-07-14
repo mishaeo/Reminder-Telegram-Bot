@@ -62,7 +62,8 @@ async def command_list(message: Message, state: FSMContext):
         for i, r in enumerate(reminders, start=1):
             response += f"{i}. 📌 {r['title']} — {r['reminder_time']}\n"
     else:
-        response = "🗒 You don't have any reminders yet."
+        response = "📋 Your reminders:\n\n"\
+                   "🗒 You don't have any reminders yet."
 
     await message.answer(response, reply_markup=kb.remind_keyboard)
 

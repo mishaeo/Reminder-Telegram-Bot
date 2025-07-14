@@ -4,6 +4,7 @@ from sqlalchemy import Column, Integer, String, DateTime, select, delete
 from datetime import datetime
 from typing import List, Dict, Any
 import os
+import asyncpg
 
 # Получаем DATABASE_URL из переменных окружения
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -81,13 +82,31 @@ async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
             for r in reminders
         ]
 
+async def get_all_reminders():
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        rows = await conn.fetch("SELECT id, telegram_id, title, reminder_time, message FROM reminders")
+        return [
+            {
+                "id": row["id"],
+                "telegram_id": row["telegram_id"],
+                "title": row["title"],
+                "reminder_time": row["reminder_time"].strftime('%Y-%m-%d %H:%M'),
+                "message": row["message"]
+            }
+            for row in rows
+        ]
+    finally:
+        await conn.close()
 
 # Удаление напоминания по ID
 async def delete_reminder_by_id(reminder_id: int):
-    async with async_session() as session:
-        stmt = delete(Reminder).where(Reminder.id == reminder_id)
-        await session.execute(stmt)
-        await session.commit()
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        await conn.execute("DELETE FROM reminders WHERE id = $1", reminder_id)
+    finally:
+        await conn.close()
+
 
 
 
