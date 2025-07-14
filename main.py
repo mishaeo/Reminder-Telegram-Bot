@@ -24,9 +24,16 @@ dp.include_router(router)
 
 # Webhook и запуск aiohttp
 async def on_startup(app):
+    print("[Startup] App is starting...")
     await init_db()
+    print("[Startup] DB initialized")
+
     await bot.set_webhook(WEBHOOK_URL)
+    print(f"[Webhook] Установлен: {WEBHOOK_URL}")
+
     asyncio.create_task(reminder_loop(bot))
+    print("[Reminder loop] Task created and running")
+
     print(f"[Webhook] Установлен: {WEBHOOK_URL}")
 
 async def on_shutdown(app):
