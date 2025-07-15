@@ -4,4 +4,6 @@ aiohttp
 sqlalchemy[asyncio]
 psycopg[binary]
 asyncpg
+pytz
+
 

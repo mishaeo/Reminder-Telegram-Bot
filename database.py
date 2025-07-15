@@ -1,8 +1,10 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, DateTime, select, delete
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
+
+import pytz
 import os
 import asyncpg
 
@@ -30,9 +32,12 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-async def create_user_remind(telegram_id: int, title: str, reminder_time: datetime, message: str):
+async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
     if isinstance(reminder_time, str):
-        reminder_time = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M")
+        dt_naive = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M")
+        local_tz = pytz.timezone("Europe/Moscow")  # Замени, если у тебя другой часовой пояс
+        dt_local = local_tz.localize(dt_naive)
+        reminder_time = dt_local.astimezone(pytz.UTC)  # Переводим в UTC для сохранения в БД
 
     reminder = Reminder(
         telegram_id=str(telegram_id),
@@ -44,6 +49,7 @@ async def create_user_remind(telegram_id: int, title: str, reminder_time: dateti
     async with async_session() as session:
         session.add(reminder)
         await session.commit()
+
 
 async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
     async with async_session() as session:
@@ -75,7 +81,6 @@ async def delete_expired_reminders():
         result = await session.execute(stmt)
         await session.commit()
         print(f"[Cleaner] Deleted {result.rowcount} expired reminders")
-
 
 async def delete_reminder_by_id(reminder_id: int):
     async with async_session() as session:
