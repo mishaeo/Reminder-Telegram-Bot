@@ -7,11 +7,35 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
+from datetime import datetime
 
 from handlers import router
 from config import BOT_TOKEN
-from database import init_db
-from tasks import reminder_loop
+from database import init_db, get_all_reminders, delete_reminder_by_id
+
+
+
+async def reminder_cleaner(bot: Bot):
+    while True:
+        reminders = await get_all_reminders()
+        now = datetime.now()
+
+        for reminder in reminders:
+            if reminder.reminder_time <= now:
+
+                text = f"🔔 Напоминание: {reminder.title}\n🕒 {reminder.reminder_time.strftime('%Y-%m-%d %H:%M')}\n📩 {reminder.message or 'Без сообщения'}"
+
+                try:
+                    await bot.send_message(reminder.telegram_id, text)
+                    print(f"[Cleaner] Отправлено напоминание ID {reminder.id}")
+                except Exception as e:
+                    print(f"[Cleaner] Ошибка при отправке напоминания ID {reminder.id}: {e}")
+
+                await delete_reminder_by_id(reminder.id)
+
+        await asyncio.sleep(30)
+
+
 
 # Получаем переменные окружения
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
@@ -24,17 +48,11 @@ dp.include_router(router)
 
 # Webhook и запуск aiohttp
 async def on_startup(app):
-    print("[Startup] App is starting...")
     await init_db()
-    print("[Startup] DB initialized")
+
+    asyncio.create_task(reminder_cleaner(bot))
 
     await bot.set_webhook(WEBHOOK_URL)
-    print(f"[Webhook] Установлен: {WEBHOOK_URL}")
-
-    asyncio.create_task(reminder_loop(bot))
-    print("[Reminder loop] Task created and running")
-
-    print(f"[Webhook] Установлен: {WEBHOOK_URL}")
 
 async def on_shutdown(app):
     await bot.delete_webhook()

@@ -6,23 +6,17 @@ from typing import List, Dict, Any
 import os
 import asyncpg
 
-# Получаем DATABASE_URL из переменных окружения
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Создаём движок
 engine = create_async_engine(DATABASE_URL, echo=False)
 
-# Создаём сессию
 async_session = async_sessionmaker(
     bind=engine,
     expire_on_commit=False
 )
 
-# Базовый класс
 Base = declarative_base()
 
-
-# Модель
 class Reminder(Base):
     __tablename__ = "reminders"
 
@@ -32,14 +26,10 @@ class Reminder(Base):
     reminder_time = Column(DateTime, nullable=False)
     message = Column(String)
 
-
-# Инициализация БД
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-
-# Создание напоминания
 async def create_user_remind(telegram_id: int, title: str, reminder_time: datetime, message: str):
     if isinstance(reminder_time, str):
         reminder_time = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M")
@@ -56,7 +46,14 @@ async def create_user_remind(telegram_id: int, title: str, reminder_time: dateti
         await session.commit()
 
 
-# Удаление просроченных напоминаний
+async def get_all_reminders():
+    async with async_session() as session:
+        result = await session.execute(
+            select(Reminder)
+        )
+        reminders = result.scalars().all()
+        return reminders
+
 async def delete_expired_reminders():
     async with async_session() as session:
         stmt = delete(Reminder).where(Reminder.reminder_time <= datetime.now())
@@ -64,42 +61,6 @@ async def delete_expired_reminders():
         await session.commit()
         print(f"[Cleaner] Deleted {result.rowcount} expired reminders")
 
-
-# Получение напоминаний пользователя
-async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
-    async with async_session() as session:
-        stmt = select(Reminder).where(Reminder.telegram_id == str(telegram_id)).order_by(Reminder.reminder_time)
-        result = await session.execute(stmt)
-        reminders = result.scalars().all()
-
-        return [
-            {
-                "id": r.id,
-                "title": r.title,
-                "reminder_time": r.reminder_time.strftime("%Y-%m-%d %H:%M"),
-                "message": r.message
-            }
-            for r in reminders
-        ]
-
-async def get_all_reminders():
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        rows = await conn.fetch("SELECT id, telegram_id, title, reminder_time, message FROM reminders")
-        return [
-            {
-                "id": row["id"],
-                "telegram_id": row["telegram_id"],
-                "title": row["title"],
-                "reminder_time": row["reminder_time"].strftime('%Y-%m-%d %H:%M'),
-                "message": row["message"]
-            }
-            for row in rows
-        ]
-    finally:
-        await conn.close()
-
-# Удаление напоминания по ID
 async def delete_reminder_by_id(reminder_id: int):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
