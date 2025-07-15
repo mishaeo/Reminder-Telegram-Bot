@@ -76,12 +76,12 @@ async def delete_expired_reminders():
         await session.commit()
         print(f"[Cleaner] Deleted {result.rowcount} expired reminders")
 
+
 async def delete_reminder_by_id(reminder_id: int):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        await conn.execute("DELETE FROM reminders WHERE id = $1", reminder_id)
-    finally:
-        await conn.close()
+    async with async_session() as session:
+        stmt = delete(Reminder).where(Reminder.id == reminder_id)
+        await session.execute(stmt)
+        await session.commit()
 
 async def get_all_reminders_all():
     async with async_session() as session:
