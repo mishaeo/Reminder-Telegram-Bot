@@ -45,6 +45,21 @@ async def create_user_remind(telegram_id: int, title: str, reminder_time: dateti
         session.add(reminder)
         await session.commit()
 
+async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
+    async with async_session() as session:
+        stmt = select(Reminder).where(Reminder.telegram_id == str(telegram_id)).order_by(Reminder.reminder_time)
+        result = await session.execute(stmt)
+        reminders = result.scalars().all()
+
+        return [
+            {
+                "id": r.id,
+                "title": r.title,
+                "reminder_time": r.reminder_time.strftime("%Y-%m-%d %H:%M"),
+                "message": r.message
+            }
+            for r in reminders
+        ]
 
 async def get_all_reminders():
     async with async_session() as session:
