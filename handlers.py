@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
 from aiogram import Bot
 
-from database import create_user_remind, get_all_reminders, delete_reminder_by_id
+from database import create_user_remind, get_user_reminders, delete_reminder_by_id
 import keyboards as kb
 
 class user_remind(StatesGroup):
@@ -39,7 +39,7 @@ async def command_help(message: Message):
 @router.message(Command('list'))
 async def command_list(message: Message, state: FSMContext):
     telegram_id = message.from_user.id
-    reminders = await get_all_reminders(telegram_id)
+    reminders = await get_user_reminders(telegram_id)
 
     if reminders:
         await state.update_data(reminder_ids=[r['id'] for r in reminders])
