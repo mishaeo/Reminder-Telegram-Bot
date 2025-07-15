@@ -7,31 +7,34 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
-from datetime import datetime
+from datetime import datetime, timezone
 
 from handlers import router
 from config import BOT_TOKEN
-from database import init_db, get_all_reminders, delete_reminder_by_id
+from database import init_db, get_all_reminders_all, delete_reminder_by_id
 
 
 
 async def reminder_cleaner(bot: Bot):
     while True:
-        reminders = await get_all_reminders()
-        now = datetime.now()
+        reminders = await get_all_reminders_all()  # нужна отдельная версия, возвращающая все напоминания
+        now = datetime.now(timezone.utc)  # лучше сравнивать с UTC
 
         for reminder in reminders:
-            if reminder.reminder_time <= now:
+            reminder_time = reminder.reminder_time
 
-                text = f"🔔 Напоминание: {reminder.title}\n🕒 {reminder.reminder_time.strftime('%Y-%m-%d %H:%M')}\n📩 {reminder.message or 'Без сообщения'}"
+            # Приводим reminder_time к UTC, если он без timezone
+            if reminder_time.tzinfo is None:
+                reminder_time = reminder_time.replace(tzinfo=timezone.utc)
 
+            if reminder_time <= now:
+                text = f"🔔 Напоминание: {reminder.title}\n🕒 {reminder_time.strftime('%Y-%m-%d %H:%M')}\n📩 {reminder.message or 'Без сообщения'}"
                 try:
-                    await bot.send_message(reminder.telegram_id, text)
-                    print(f"[Cleaner] Отправлено напоминание ID {reminder.id}")
+                    await bot.send_message(int(reminder.telegram_id), text)
+                    await delete_reminder_by_id(reminder.id)
+                    print(f"[Cleaner] Отправлено и удалено напоминание ID {reminder.id}")
                 except Exception as e:
-                    print(f"[Cleaner] Ошибка при отправке напоминания ID {reminder.id}: {e}")
-
-                await delete_reminder_by_id(reminder.id)
+                    print(f"[Cleaner] ❌ Ошибка при отправке напоминания ID {reminder.id}: {e}")
 
         await asyncio.sleep(30)
 

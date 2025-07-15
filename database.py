@@ -83,6 +83,12 @@ async def delete_reminder_by_id(reminder_id: int):
     finally:
         await conn.close()
 
+async def get_all_reminders_all():
+    async with async_session() as session:
+        result = await session.execute(select(Reminder))
+        return result.scalars().all()
+
+
 
 
 
