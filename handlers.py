@@ -1,4 +1,3 @@
-import asyncio
 from aiogram import Router, F
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
@@ -17,6 +16,11 @@ class user_remind(StatesGroup):
     message_remind = State()
     delete_index = State()
     show_index = State()
+
+class user(StatesGroup):
+    user_country = State()
+    user_timezone = State()
+
 
 router = Router()
 
@@ -273,3 +277,34 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+async def get_utc_time_month():
+    now_utc = datetime.utcnow()
+    current_month = now_utc.month
+    print("UTC now:", now_utc)
+    print("Current month:", current_month)
+    return now_utc, current_month
+
+
+
+@router.message(Command('/register'))
+async def command_register(message: Message, state: FSMContext):
+
+    await message.answer('Please enter your country of residence.')
+
+    await state.set_state(user.user_country)
+
+@router.message(user.user_country)
+async def handler_register_country(message: Message, state: FSMContext):
+    user_country = message.text
+    await state.update_data(user_country=user_country)
+
+    await message.answer('Please select your time zone from the list (you need to select the same time as you are currently on).')
+
+    await state.set_state(user.user_timezone)
+
+@router.message(user.user_timezone)
+async def handler_register_timezone(message: Message, state: FSMContext):
+    user_timezone = message.text
+    await state.update_data(user_timezone=user_timezone, reply_markup=kb.utc_times_keyboard)
+

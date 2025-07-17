@@ -35,9 +35,9 @@ async def init_db():
 async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
     if isinstance(reminder_time, str):
         dt_naive = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M")
-        local_tz = pytz.timezone("Europe/Moscow")  # Замени, если у тебя другой часовой пояс
+        local_tz = pytz.timezone("Europe/Moscow")
         dt_local = local_tz.localize(dt_naive)
-        reminder_time = dt_local.astimezone(pytz.UTC)  # Переводим в UTC для сохранения в БД
+        reminder_time = dt_local.astimezone(pytz.UTC)
 
     reminder = Reminder(
         telegram_id=str(telegram_id),
