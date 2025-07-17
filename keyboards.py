@@ -10,9 +10,6 @@ remind_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     ]
 ])
 
-from datetime import datetime, timedelta
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
 def create_utc_times_keyboard():
     now_utc = datetime.utcnow()
     offsets = list(range(-12, 12 + 1))

@@ -27,7 +27,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     telegram_id = Column(BigInteger, nullable=False, unique=True)
     country = Column(String, nullable=True)
-    timezone = Column(Integer, nullable=True)
+    timezone = Column(String, nullable=True)
 
     reminders = relationship("Reminder", back_populates="user", cascade="all, delete-orphan")
 
@@ -45,7 +45,7 @@ class Reminder(Base):
 
 async def init_db():
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all) # ACHTUNG ACHTUNG !!!!!!!!!
         await conn.run_sync(Base.metadata.create_all)
 
 async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
@@ -66,7 +66,7 @@ async def create_user_remind(telegram_id: int, title: str, reminder_time, messag
         session.add(reminder)
         await session.commit()
 
-async def create_or_update_user(telegram_id: int, country: str, timezone: int):
+async def create_or_update_user(telegram_id: int, country: str, timezone: str):
     async with async_session() as session:
         try:
             result = await session.execute(select(User).where(User.telegram_id == telegram_id))
@@ -93,11 +93,6 @@ async def create_or_update_user(telegram_id: int, country: str, timezone: int):
             await session.rollback()
             print(f"Ошибка при сохранении пользователя: {e}")
             return None
-
-
-
-
-
 
 async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
     async with async_session() as session:

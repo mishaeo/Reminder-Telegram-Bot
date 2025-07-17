@@ -299,17 +299,14 @@ async def handler_register_country(message: Message, state: FSMContext):
 # Handler registration of timezone
 @router.callback_query(F.data.regexp(r"^[+-]?\d{1,2}$"))
 async def handle_timezone_callback(callback: CallbackQuery, state: FSMContext):
-    user_timezone_str = callback.data
-    await state.update_data(user_timezone=user_timezone_str)
+    user_timezone = callback.data  # строка вида "+2", "-3"
+    await state.update_data(user_timezone=user_timezone)
 
     telegram_id = callback.from_user.id
-
     data = await state.get_data()
     user_country = data.get("user_country")
 
-    user_timezone = int(user_timezone_str)
-
-    await callback.message.answer(f"Great! Your timezone: UTC{user_timezone_str}")
+    await callback.message.answer(f"Great! Your timezone: UTC{user_timezone}")
     await callback.answer()
 
     await create_or_update_user(telegram_id, user_country, user_timezone)
