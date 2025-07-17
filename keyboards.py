@@ -15,7 +15,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def create_utc_times_keyboard():
     now_utc = datetime.utcnow()
-    offsets = list(range(-12, 12 + 1))  # от -12 до +11
+    offsets = list(range(-12, 12 + 1))
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
     row = []
@@ -24,24 +24,20 @@ def create_utc_times_keyboard():
         local_time = now_utc + timedelta(hours=offset)
         time_str = local_time.strftime("%H:%M")
 
-        if offset >= 0:
-            tz_text = f"UTC+{offset}({time_str})"
-        else:
-            tz_text = f"UTC{offset}({time_str})"
+        sign = f"+{offset}" if offset >= 0 else f"{offset}"
+        tz_text = f"UTC{sign}({time_str})"
+        callback_data = sign  # только +2, -5 и т.п.
 
-        button = InlineKeyboardButton(text=tz_text, callback_data=f"UTC{offset}")
+        button = InlineKeyboardButton(text=tz_text, callback_data=callback_data)
         row.append(button)
 
-        # Каждые 3 кнопки — новая строка
         if len(row) == 3:
             keyboard.inline_keyboard.append(row)
             row = []
 
-    # Добавим последнюю строку, если остались кнопки
     if row:
         keyboard.inline_keyboard.append(row)
 
     return keyboard
-
 
 utc_times_keyboard = create_utc_times_keyboard()
