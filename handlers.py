@@ -303,13 +303,16 @@ async def handler_register_country(message: Message, state: FSMContext):
 
     await state.set_state(user.user_timezone)
 
-@router.message(user.user_timezone)
-async def handler_register_timezone(message: Message, state: FSMContext):
-    user_timezone = message.text
+@router.callback_query(F.data.startswith("UTC"))
+async def handle_timezone_callback(callback: CallbackQuery, state: FSMContext):
+    user_timezone = callback.data  # например "UTC+3" или "UTC-5"
+
     await state.update_data(user_timezone=user_timezone)
 
-    await message.answer('Great!')
+    await callback.message.answer("Great!")
+    await callback.message.answer(f"Your timezone: {user_timezone}")
 
-    await message.answer(f'Your timezone: {user_timezone}')
+    # Обязательно ответить на callback, чтобы Telegram убрал "часики"
+    await callback.answer()
 
 
