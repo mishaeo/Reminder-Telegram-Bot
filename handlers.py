@@ -7,7 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
 from aiogram import Bot
 
-from database import create_user_remind, get_user_reminders, delete_reminder_by_id
+from database import create_user_remind, get_user_reminders, delete_reminder_by_id, create_or_update_user
 import keyboards as kb
 
 class user_remind(StatesGroup):
@@ -278,15 +278,7 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
 
     await state.clear()
 
-async def get_utc_time_month():
-    now_utc = datetime.utcnow()
-    current_month = now_utc.month
-    print("UTC now:", now_utc)
-    print("Current month:", current_month)
-    return now_utc, current_month
-
-
-
+# Command registration
 @router.message(Command('register'))
 async def command_register(message: Message, state: FSMContext):
 
@@ -294,6 +286,7 @@ async def command_register(message: Message, state: FSMContext):
 
     await state.set_state(user.user_country)
 
+# Handler registration of country
 @router.message(user.user_country)
 async def handler_register_country(message: Message, state: FSMContext):
     user_country = message.text
@@ -303,13 +296,24 @@ async def handler_register_country(message: Message, state: FSMContext):
 
     await state.set_state(user.user_timezone)
 
+# Handler registration of timezone
 @router.callback_query(F.data.regexp(r"^[+-]?\d{1,2}$"))
 async def handle_timezone_callback(callback: CallbackQuery, state: FSMContext):
-    user_timezone = callback.data
-    await state.update_data(user_timezone=user_timezone)
+    user_timezone_str = callback.data
+    await state.update_data(user_timezone=user_timezone_str)
 
-    await callback.message.answer(f"Great! Your timezone: UTC{user_timezone}")
+    telegram_id = callback.from_user.id
+
+    data = await state.get_data()
+    user_country = data.get("user_country")
+
+    user_timezone = int(user_timezone_str)
+
+    await callback.message.answer(f"Great! Your timezone: UTC{user_timezone_str}")
     await callback.answer()
+
+    await create_or_update_user(telegram_id, user_country, user_timezone)
+
 
 
 

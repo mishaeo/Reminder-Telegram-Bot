@@ -1,12 +1,13 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, String, DateTime, select, delete
-from datetime import datetime, timezone
+from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import Column, Integer, String, DateTime, select, delete, ForeignKey
+from datetime import datetime
 from typing import List, Dict, Any
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import pytz
 import os
-import asyncpg
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -17,16 +18,30 @@ async_session = async_sessionmaker(
     expire_on_commit=False
 )
 
+
 Base = declarative_base()
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telegram_id = Column(Integer, nullable=False, unique=True)
+    country = Column(String, nullable=True)
+    timezone = Column(Integer, nullable=True)
+
+    reminders = relationship("Reminder", back_populates="user", cascade="all, delete-orphan")
+
 
 class Reminder(Base):
     __tablename__ = "reminders"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    telegram_id = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # внешний ключ
     title = Column(String, nullable=False)
     reminder_time = Column(DateTime, nullable=False)
     message = Column(String)
+
+    user = relationship("User", back_populates="reminders")
 
 async def init_db():
     async with engine.begin() as conn:
@@ -49,6 +64,38 @@ async def create_user_remind(telegram_id: int, title: str, reminder_time, messag
     async with async_session() as session:
         session.add(reminder)
         await session.commit()
+
+async def create_or_update_user(telegram_id: int, country: str, timezone: int):
+    async with async_session() as session:
+        try:
+            result = await session.execute(select(User).where(User.telegram_id == telegram_id))
+            user = result.scalars().first()
+
+            if user:
+                user.country = country
+                user.timezone = timezone
+                print(f"Пользователь {telegram_id} найден — обновлены данные.")
+            else:
+                user = User(
+                    telegram_id=telegram_id,
+                    country=country,
+                    timezone=timezone
+                )
+                session.add(user)
+                print(f"Создан новый пользователь {telegram_id}.")
+
+            await session.commit()
+            await session.refresh(user)
+            return user
+
+        except IntegrityError as e:
+            await session.rollback()
+            print(f"Ошибка при сохранении пользователя: {e}")
+            return None
+
+
+
+
 
 
 async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
@@ -92,6 +139,7 @@ async def get_all_reminders_all():
     async with async_session() as session:
         result = await session.execute(select(Reminder))
         return result.scalars().all()
+
 
 
 
