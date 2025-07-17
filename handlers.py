@@ -287,7 +287,7 @@ async def get_utc_time_month():
 
 
 
-@router.message(Command('/register'))
+@router.message(Command('register'))
 async def command_register(message: Message, state: FSMContext):
 
     await message.answer('Please enter your country of residence.')
@@ -299,12 +299,15 @@ async def handler_register_country(message: Message, state: FSMContext):
     user_country = message.text
     await state.update_data(user_country=user_country)
 
-    await message.answer('Please select your time zone from the list (you need to select the same time as you are currently on).')
+    await message.answer('Please select your time zone from the list (you need to select the same time as you are currently on).', reply_markup=kb.utc_times_keyboard)
 
     await state.set_state(user.user_timezone)
 
 @router.message(user.user_timezone)
 async def handler_register_timezone(message: Message, state: FSMContext):
     user_timezone = message.text
-    await state.update_data(user_timezone=user_timezone, reply_markup=kb.utc_times_keyboard)
+    await state.update_data(user_timezone=user_timezone)
+
+    await message.answer('Great!')
+
 
