@@ -310,4 +310,6 @@ async def handler_register_timezone(message: Message, state: FSMContext):
 
     await message.answer('Great!')
 
+    await message.answer(f'Your timezone: {user_timezone}')
+
 
