@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy import Column, Integer, String, DateTime, select, delete, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, select, delete, ForeignKey, BigInteger
 from datetime import datetime
 from typing import List, Dict, Any
 from sqlalchemy.exc import IntegrityError
@@ -25,7 +25,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    telegram_id = Column(Integer, nullable=False, unique=True)
+    telegram_id = Column(BigInteger, nullable=False, unique=True)
     country = Column(String, nullable=True)
     timezone = Column(Integer, nullable=True)
 
@@ -45,8 +45,8 @@ class Reminder(Base):
 
 async def init_db():
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)    # удалит все таблицы
-        await conn.run_sync(Base.metadata.create_all)  # создаст заново с правильной схемой
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
 
 async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
     if isinstance(reminder_time, str):
