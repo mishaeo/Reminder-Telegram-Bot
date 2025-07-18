@@ -1,9 +1,10 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy import Column, Integer, String, DateTime, select, delete, ForeignKey, BigInteger
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 
 import pytz
 import os
@@ -37,13 +38,14 @@ class Reminder(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # внешний ключ
     title = Column(String, nullable=False)
-    reminder_time = Column(DateTime, nullable=False)
+    reminder_time = Column(TIMESTAMP(timezone=True), nullable=False)
     message = Column(String)
 
     user = relationship("User", back_populates="reminders")
 
 async def init_db():
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
@@ -89,12 +91,6 @@ async def create_user_remind(telegram_id: int, title: str, reminder_time, messag
 
         session.add(reminder)
         await session.commit()
-
-
-
-
-
-
 
 async def create_or_update_user(telegram_id: int, country: str, timezone: str):
     async with async_session() as session:
@@ -147,7 +143,6 @@ async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
             for r in reminders
         ]
 
-
 async def get_all_reminders():
     async with async_session() as session:
         result = await session.execute(
@@ -158,7 +153,7 @@ async def get_all_reminders():
 
 async def delete_expired_reminders():
     async with async_session() as session:
-        stmt = delete(Reminder).where(Reminder.reminder_time <= datetime.now())
+        stmt = delete(Reminder).where(Reminder.reminder_time <= datetime.now(timezone.utc))
         result = await session.execute(stmt)
         await session.commit()
         print(f"[Cleaner] Deleted {result.rowcount} expired reminders")
@@ -173,10 +168,4 @@ async def get_all_reminders_all():
     async with async_session() as session:
         result = await session.execute(select(Reminder))
         return result.scalars().all()
-
-
-
-
-
-
 
