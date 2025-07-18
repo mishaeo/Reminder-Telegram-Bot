@@ -4,7 +4,6 @@ from sqlalchemy import Column, Integer, String, DateTime, select, delete, Foreig
 from datetime import datetime
 from typing import List, Dict, Any
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 import pytz
 import os
@@ -45,26 +44,57 @@ class Reminder(Base):
 
 async def init_db():
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all) # ACHTUNG ACHTUNG !!!!!!!!!
         await conn.run_sync(Base.metadata.create_all)
 
 async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
-    if isinstance(reminder_time, str):
-        dt_naive = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M")
-        local_tz = pytz.timezone("Europe/Moscow")
-        dt_local = local_tz.localize(dt_naive)
-        reminder_time = dt_local.astimezone(pytz.UTC)
-
-    reminder = Reminder(
-        telegram_id=str(telegram_id),
-        title=title,
-        reminder_time=reminder_time.replace(second=0, microsecond=0),
-        message=message
-    )
-
     async with async_session() as session:
+        # Получаем смещение пользователя (в часах)
+        result = await session.execute(
+            select(User.id, User.timezone).where(User.telegram_id == telegram_id)
+        )
+        user_data = result.first()
+
+        if not user_data:
+            raise ValueError(f"Пользователь с telegram_id {telegram_id} не найден")
+
+        user_id, timezone_offset_str = user_data
+
+        # Преобразуем смещение в int
+        try:
+            timezone_offset = int(timezone_offset_str)
+        except ValueError:
+            raise ValueError(f"Неверное значение смещения: {timezone_offset_str}")
+
+        # Парсим напоминание
+        if isinstance(reminder_time, str):
+            dt_naive = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M")
+
+            # Создаём временную зону со смещением (в минутах)
+            tz = pytz.FixedOffset(timezone_offset * 60)
+            dt_local = tz.localize(dt_naive)
+
+            # Переводим в UTC
+            reminder_time = dt_local.astimezone(pytz.UTC)
+
+        # Убираем секунды и микросекунды
+        reminder_time = reminder_time.replace(second=0, microsecond=0)
+
+        # Создаём напоминание
+        reminder = Reminder(
+            user_id=user_id,
+            title=title,
+            reminder_time=reminder_time,
+            message=message
+        )
+
         session.add(reminder)
         await session.commit()
+
+
+
+
+
+
 
 async def create_or_update_user(telegram_id: int, country: str, timezone: str):
     async with async_session() as session:
@@ -96,7 +126,14 @@ async def create_or_update_user(telegram_id: int, country: str, timezone: str):
 
 async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
     async with async_session() as session:
-        stmt = select(Reminder).where(Reminder.telegram_id == str(telegram_id)).order_by(Reminder.reminder_time)
+        # Получаем user_id по telegram_id
+        result = await session.execute(select(User.id).where(User.telegram_id == telegram_id))
+        user_id = result.scalar()
+
+        if not user_id:
+            return []
+
+        stmt = select(Reminder).where(Reminder.user_id == user_id).order_by(Reminder.reminder_time)
         result = await session.execute(stmt)
         reminders = result.scalars().all()
 
@@ -109,6 +146,7 @@ async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
             }
             for r in reminders
         ]
+
 
 async def get_all_reminders():
     async with async_session() as session:

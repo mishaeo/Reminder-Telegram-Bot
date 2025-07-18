@@ -23,7 +23,7 @@ def create_utc_times_keyboard():
 
         sign = f"+{offset}" if offset >= 0 else f"{offset}"
         tz_text = f"UTC{sign}({time_str})"
-        callback_data = sign  # только +2, -5 и т.п.
+        callback_data = sign
 
         button = InlineKeyboardButton(text=tz_text, callback_data=callback_data)
         row.append(button)
