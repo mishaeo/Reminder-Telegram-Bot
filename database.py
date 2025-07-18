@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship, selectinload
 from sqlalchemy import Column, Integer, String, DateTime, select, delete, ForeignKey, BigInteger
 from datetime import datetime, timezone
 from typing import List, Dict, Any
@@ -166,6 +166,8 @@ async def delete_reminder_by_id(reminder_id: int):
 
 async def get_all_reminders_all():
     async with async_session() as session:
-        result = await session.execute(select(Reminder))
+        result = await session.execute(
+            select(Reminder).options(selectinload(Reminder.user))
+        )
         return result.scalars().all()
 

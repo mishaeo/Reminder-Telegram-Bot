@@ -22,14 +22,18 @@ async def reminder_cleaner(bot: Bot):
 
         for reminder in reminders:
             reminder_time = reminder.reminder_time
+
             if reminder_time.tzinfo is None:
-                # Защита, если время пришло без часового пояса
                 reminder_time = reminder_time.replace(tzinfo=timezone.utc)
 
             if reminder_time <= now:
                 try:
+                    if not reminder.user or not reminder.user.telegram_id:
+                        print(f"[Cleaner] Reminder ID {reminder.id} has no valid user, skipping.")
+                        continue
+
                     await bot.send_message(
-                        int(reminder.telegram_id),
+                        int(reminder.user.telegram_id),
                         f"🔔 Напоминание: {reminder.title}\n{reminder.message or ''}"
                     )
                     await delete_reminder_by_id(reminder.id)
@@ -40,6 +44,7 @@ async def reminder_cleaner(bot: Bot):
                 print(f"[Cleaner] Reminder ID {reminder.id} not due yet ({reminder_time.isoformat()})")
 
         await asyncio.sleep(30)
+
 
 # Получаем переменные окружения
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
