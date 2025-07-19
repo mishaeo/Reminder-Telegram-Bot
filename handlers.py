@@ -1,13 +1,13 @@
-from aiogram import Router, F
+from aiogram import Router, F, BaseMiddleware, Bot
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
-from aiogram import Bot
+from typing import Callable, Awaitable, Dict, Any
 
-from database import create_user_remind, get_user_reminders, delete_reminder_by_id, create_or_update_user
+from database import create_user_remind, get_user_reminders, delete_reminder_by_id, create_or_update_user, is_registered
 import keyboards as kb
 
 class user_remind(StatesGroup):
@@ -21,8 +21,32 @@ class user(StatesGroup):
     user_country = State()
     user_timezone = State()
 
-
 router = Router()
+
+# Check if the user is registered
+class RegistrationMiddleware(BaseMiddleware):
+    async def __call__(
+        self,
+        handler: Callable,
+        event: Message | CallbackQuery,
+        data: Dict[str, Any]
+    ) -> Any:
+        if isinstance(event, Message):
+            if event.text and event.text.startswith('/register'):
+                return await handler(event, data)
+
+            telegram_id = event.from_user.id
+            if not await is_registered(telegram_id):
+                await event.answer("❌ Вы не зарегистрированы. Используйте /register.")
+                return
+
+        elif isinstance(event, CallbackQuery):
+            telegram_id = event.from_user.id
+            if not await is_registered(telegram_id):
+                await event.answer("❌ Вы не зарегистрированы. Используйте /register.", show_alert=True)
+                return
+
+        return await handler(event, data)
 
 # Command start
 @router.message(CommandStart())
@@ -277,6 +301,8 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
 
 # Command registration
 @router.message(Command('register'))

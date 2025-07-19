@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from handlers import router
 from config import BOT_TOKEN
 from database import init_db, get_all_reminders_all, delete_reminder_by_id
+from handlers import RegistrationMiddleware
 
 async def reminder_cleaner(bot: Bot):
     while True:
@@ -43,8 +44,7 @@ async def reminder_cleaner(bot: Bot):
             else:
                 print(f"[Cleaner] Reminder ID {reminder.id} not due yet ({reminder_time.isoformat()})")
 
-        await asyncio.sleep(30)
-
+        await asyncio.sleep(10)
 
 # Получаем переменные окружения
 APP_URL = os.getenv("APP_URL", "").rstrip("/")
@@ -58,6 +58,9 @@ dp.include_router(router)
 # Webhook и запуск aiohttp
 async def on_startup(app):
     await init_db()
+
+    dp.message.middleware(RegistrationMiddleware())
+    dp.callback_query.middleware(RegistrationMiddleware())
 
     asyncio.create_task(reminder_cleaner(bot))
 

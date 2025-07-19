@@ -45,7 +45,7 @@ class Reminder(Base):
 
 async def init_db():
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
@@ -170,4 +170,13 @@ async def get_all_reminders_all():
             select(Reminder).options(selectinload(Reminder.user))
         )
         return result.scalars().all()
+
+async def is_registered(telegram_id: int) -> bool:
+    async with async_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        user = result.scalar_one_or_none()
+        return user is not None
+
 
