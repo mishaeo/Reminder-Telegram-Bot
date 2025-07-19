@@ -5,7 +5,8 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
-from typing import Callable, Awaitable, Dict, Any
+from typing import Callable, Dict, Any
+import re
 
 from database import create_user_remind, get_user_reminders, delete_reminder_by_id, create_or_update_user, is_registered
 import keyboards as kb
@@ -37,6 +38,10 @@ class RegistrationMiddleware(BaseMiddleware):
                 return
 
         elif isinstance(event, CallbackQuery):
+            # ✅ Разрешаем callback-запросы, соответствующие таймзоне (например: "+2", "-3", "0")
+            if event.data and re.fullmatch(r"[+-]?\d{1,2}", event.data):
+                return await handler(event, data)
+
             telegram_id = event.from_user.id
             if not await is_registered(telegram_id):
                 await event.answer("❌ You are not registered. Use /register.", show_alert=True)

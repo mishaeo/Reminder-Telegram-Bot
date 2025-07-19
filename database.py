@@ -43,7 +43,7 @@ class Reminder(Base):
 
 async def init_db():
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
