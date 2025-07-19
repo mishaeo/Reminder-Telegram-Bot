@@ -10,7 +10,7 @@ import re
 
 from database import create_user_remind, get_user_reminders, delete_reminder_by_id, create_or_update_user, is_registered
 import keyboards as kb
-from aiogram_calendar import SimpleCalendar, simple_cal_callback
+from aiogram_calendar import SimpleCalendar
 from aiogram_timepicker import TimePicker, timepicker_callback
 
 class user_remind(StatesGroup):
@@ -222,7 +222,7 @@ async def handler_create_name(message: Message, state: FSMContext, bot: Bot):
     await state.set_state(user_remind.time_remind)
 
 # Новый handler для выбора даты через календарь
-@router.callback_query(simple_cal_callback.filter())
+@router.callback_query(F.data.startswith("simple_calendar"))
 async def process_simple_calendar(callback_query: CallbackQuery, callback_data: dict, state: FSMContext):
     selected, date = await SimpleCalendar().process_selection(callback_query, callback_data)
     if selected:
