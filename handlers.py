@@ -17,10 +17,6 @@ class user_remind(StatesGroup):
     delete_index = State()
     show_index = State()
 
-class user(StatesGroup):
-    user_country = State()
-    user_timezone = State()
-
 router = Router()
 
 # Check if the user is registered
@@ -32,18 +28,18 @@ class RegistrationMiddleware(BaseMiddleware):
         data: Dict[str, Any]
     ) -> Any:
         if isinstance(event, Message):
-            if event.text and event.text.startswith('/register'):
+            if event.text and event.text.startswith(('/register', '/start', '/help')):
                 return await handler(event, data)
 
             telegram_id = event.from_user.id
             if not await is_registered(telegram_id):
-                await event.answer("❌ Вы не зарегистрированы. Используйте /register.")
+                await event.answer("❌ You are not registered. Use /register.")
                 return
 
         elif isinstance(event, CallbackQuery):
             telegram_id = event.from_user.id
             if not await is_registered(telegram_id):
-                await event.answer("❌ Вы не зарегистрированы. Используйте /register.", show_alert=True)
+                await event.answer("❌ You are not registered. Use /register.", show_alert=True)
                 return
 
         return await handler(event, data)
@@ -59,10 +55,12 @@ async def command_help(message: Message):
     await message.answer(
         "ℹ️ <b>Help Menu</b>\n\n"
         "🚀 <b>/start</b> — Start interacting with the bot\n"
+        "📝 <b>/register</b> — Register yourself to use the bot\n"
         "📋 <b>/list</b> — Shows the current reminders\n"
         "❓ <b>/help</b> — Show this help menu",
         parse_mode="HTML"
     )
+
 # Command list
 @router.message(Command('list'))
 async def command_list(message: Message, state: FSMContext):
@@ -302,40 +300,22 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
 
     await state.clear()
 
-
-
 # Command registration
 @router.message(Command('register'))
 async def command_register(message: Message, state: FSMContext):
 
-    await message.answer('Please enter your country of residence.')
-
-    await state.set_state(user.user_country)
-
-# Handler registration of country
-@router.message(user.user_country)
-async def handler_register_country(message: Message, state: FSMContext):
-    user_country = message.text
-    await state.update_data(user_country=user_country)
-
     await message.answer('Please select your time zone from the list (you need to select the same time as you are currently on).', reply_markup=kb.utc_times_keyboard)
-
-    await state.set_state(user.user_timezone)
 
 # Handler registration of timezone
 @router.callback_query(F.data.regexp(r"^[+-]?\d{1,2}$"))
-async def handle_timezone_callback(callback: CallbackQuery, state: FSMContext):
-    user_timezone = callback.data  # строка вида "+2", "-3"
-    await state.update_data(user_timezone=user_timezone)
-
+async def handle_timezone_callback(callback: CallbackQuery):
+    user_timezone = callback.data
     telegram_id = callback.from_user.id
-    data = await state.get_data()
-    user_country = data.get("user_country")
 
     await callback.message.answer(f"Great! Your timezone: UTC{user_timezone}")
     await callback.answer()
 
-    await create_or_update_user(telegram_id, user_country, user_timezone)
+    await create_or_update_user(telegram_id, user_timezone)
 
 
 

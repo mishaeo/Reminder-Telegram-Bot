@@ -18,7 +18,6 @@ async_session = async_sessionmaker(
     expire_on_commit=False
 )
 
-
 Base = declarative_base()
 
 class User(Base):
@@ -26,7 +25,6 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     telegram_id = Column(BigInteger, nullable=False, unique=True)
-    country = Column(String, nullable=True)
     timezone = Column(String, nullable=True)
 
     reminders = relationship("Reminder", back_populates="user", cascade="all, delete-orphan")
@@ -45,7 +43,7 @@ class Reminder(Base):
 
 async def init_db():
     async with engine.begin() as conn:
-        # await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
@@ -92,20 +90,18 @@ async def create_user_remind(telegram_id: int, title: str, reminder_time, messag
         session.add(reminder)
         await session.commit()
 
-async def create_or_update_user(telegram_id: int, country: str, timezone: str):
+async def create_or_update_user(telegram_id: int, timezone: str):
     async with async_session() as session:
         try:
             result = await session.execute(select(User).where(User.telegram_id == telegram_id))
             user = result.scalars().first()
 
             if user:
-                user.country = country
                 user.timezone = timezone
                 print(f"Пользователь {telegram_id} найден — обновлены данные.")
             else:
                 user = User(
                     telegram_id=telegram_id,
-                    country=country,
                     timezone=timezone
                 )
                 session.add(user)
