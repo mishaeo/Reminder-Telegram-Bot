@@ -5,7 +5,5 @@ sqlalchemy[asyncio]
 psycopg[binary]
 asyncpg
 pytz
-aiogram-calendar
-aiogram-timepicker
 
 

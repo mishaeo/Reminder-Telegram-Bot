@@ -10,8 +10,6 @@ import re
 
 from database import create_user_remind, get_user_reminders, delete_reminder_by_id, create_or_update_user, is_registered
 import keyboards as kb
-from aiogram_calendar import SimpleCalendar, simple_cal_callback
-from aiogram_timepicker import TimePicker, timepicker_callback
 
 class user_remind(StatesGroup):
     name_remind = State()
@@ -193,20 +191,24 @@ async def command_create(callback: CallbackQuery, state: FSMContext):
 @router.message(user_remind.name_remind)
 async def handler_create_name(message: Message, state: FSMContext, bot: Bot):
     name_remind = message.text
+
     if len(name_remind) > 20:
         await message.answer(
             "❌ The reminder name must not exceed 20 characters. Please enter a shorter name.")
         return
+
     data = await state.get_data()
     reminder_message_id = data.get("reminder_message_id")
+
     await state.update_data(name_remind=name_remind)
+
     new_text = (
         '<b>📌 Create a new reminder</b>\n\n'
         '<b>✅ | 📝 Reminder name:</b>\n '
         f'<b>{name_remind}</b>\n'
         '<b>❌ | ⏰ Time to receive reminder: </b>\n'
         '<b>❌ | 💬 Reminder message: </b>\n\n'
-        '<b># Please select the time of the reminder. #</b>'
+        '<b># Please select the time of the reminder. Example: YYYY-MM-DD HH:MM #</b>'
     )
     try:
         await bot.edit_message_text(
@@ -217,53 +219,47 @@ async def handler_create_name(message: Message, state: FSMContext, bot: Bot):
         )
     except Exception as e:
         await message.answer("❗ Failed to update message.")
-    # Показываем календарь для выбора даты
-    await message.answer("📅 Please select a date:", reply_markup=await SimpleCalendar().start_calendar())
+
     await state.set_state(user_remind.time_remind)
 
-# Новый handler для выбора даты через календарь
-@router.callback_query(simple_cal_callback.filter())
-async def process_simple_calendar(callback_query: CallbackQuery, callback_data: dict, state: FSMContext):
-    selected, date = await SimpleCalendar().process_selection(callback_query, callback_data)
-    if selected:
-        await state.update_data(date_remind=date.strftime('%Y-%m-%d'))
-        await callback_query.message.answer(f"🕒 Please select a time:", reply_markup=TimePicker().as_markup())
-        await state.set_state(user_remind.time_remind)  # Остаёмся в этом состоянии для выбора времени
-    await callback_query.answer()
+# Handler for command create, handler for a date of reminder
+@router.message(user_remind.time_remind)
+async def handler_create_date(message: Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    reminder_message_id = data.get("reminder_message_id")
+    name_remind = data.get('name_remind')
 
-# Новый handler для выбора времени через timepicker
-@router.callback_query(timepicker_callback.filter())
-async def process_timepicker(callback_query: CallbackQuery, callback_data: dict, state: FSMContext, bot: Bot):
-    time = TimePicker().convert_callback_data(callback_data)
-    if time:
-        data = await state.get_data()
-        date_remind = data.get('date_remind')
-        time_remind = f"{date_remind} {time.strftime('%H:%M')}"
-        await state.update_data(time_remind=time_remind)
-        # Обновляем сообщение и переходим к следующему шагу (ввод текста напоминания)
-        reminder_message_id = data.get("reminder_message_id")
-        name_remind = data.get('name_remind')
-        new_text = (
-            '<b>📌 Create a new reminder</b>\n\n'
-            '<b>✅ | 📝 Reminder name:</b>\n '
-            f'<b>{name_remind}</b>\n'
-            '<b>✅ | ⏰ Time to receive reminder: </b>\n'
-            f'<b>{time_remind}</b>\n'
-            '<b>❌ | 💬 Reminder message: </b>\n\n'
-            '<b># Please Enter the message of the reminder. #</b>'
+    time_remind = message.text.strip()
+
+    try:
+        datetime.strptime(time_remind, '%Y-%m-%d %H:%M')
+    except ValueError:
+        await message.answer("❌ Invalid time format. Please enter in format: <b>YYYY-MM-DD HH:MM</b>",
+                             parse_mode="HTML")
+        return
+
+    await state.update_data(time_remind=time_remind)
+
+    new_text = (
+        '<b>📌 Create a new reminder</b>\n\n'
+        '<b>✅ | 📝 Reminder name:</b>\n '
+        f'<b>{name_remind}</b>\n'
+        '<b>✅ | ⏰ Time to receive reminder: </b>\n'
+        f'<b>{time_remind}</b>\n'
+        '<b>❌ | 💬 Reminder message: </b>\n\n'
+        '<b># Please Enter the message of the reminder. #</b>'
+    )
+    try:
+        await bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=reminder_message_id,
+            text=new_text,
+            parse_mode=ParseMode.HTML
         )
-        try:
-            await bot.edit_message_text(
-                chat_id=callback_query.message.chat.id,
-                message_id=reminder_message_id,
-                text=new_text,
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as e:
-            await callback_query.message.answer("❗ Failed to update message.")
-        await callback_query.message.answer("💬 Please enter the message for the reminder:")
-        await state.set_state(user_remind.message_remind)
-    await callback_query.answer()
+    except Exception as e:
+        await message.answer("❗ Failed to update message.")
+
+    await state.set_state(user_remind.message_remind)
 
 # Handler for command create, handler for a message of reminder
 @router.message(user_remind.message_remind)
