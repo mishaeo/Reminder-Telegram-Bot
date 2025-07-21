@@ -48,33 +48,14 @@ async def init_db():
 
 async def create_user_remind(telegram_id: int, title: str, reminder_time, message: str):
     async with async_session() as session:
-        # Получаем смещение пользователя (в часах)
+        # Получаем user_id по telegram_id
         result = await session.execute(
-            select(User.id, User.timezone).where(User.telegram_id == telegram_id)
+            select(User.id).where(User.telegram_id == telegram_id)
         )
-        user_data = result.first()
+        user_id = result.scalar()
 
-        if not user_data:
+        if not user_id:
             raise ValueError(f"Пользователь с telegram_id {telegram_id} не найден")
-
-        user_id, timezone_offset_str = user_data
-
-        # Преобразуем смещение в int
-        try:
-            timezone_offset = int(timezone_offset_str)
-        except ValueError:
-            raise ValueError(f"Неверное значение смещения: {timezone_offset_str}")
-
-        # Парсим напоминание
-        if isinstance(reminder_time, str):
-            dt_naive = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M")
-
-            # Создаём временную зону со смещением (в минутах)
-            tz = pytz.FixedOffset(timezone_offset * 60)
-            dt_local = tz.localize(dt_naive)
-
-            # Переводим в UTC
-            reminder_time = dt_local.astimezone(pytz.UTC)
 
         # Убираем секунды и микросекунды
         reminder_time = reminder_time.replace(second=0, microsecond=0)

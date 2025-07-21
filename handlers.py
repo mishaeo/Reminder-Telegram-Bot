@@ -8,8 +8,10 @@ from datetime import datetime
 from typing import Callable, Dict, Any
 import re
 
-from database import create_user_remind, get_user_reminders, delete_reminder_by_id, create_or_update_user, is_registered
+from database import create_user_remind, get_user_reminders, delete_reminder_by_id, create_or_update_user, is_registered, async_session, User
 import keyboards as kb
+from sqlalchemy import select
+import pytz
 
 class user_remind(StatesGroup):
     name_remind = State()
@@ -228,17 +230,47 @@ async def handler_create_date(message: Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     reminder_message_id = data.get("reminder_message_id")
     name_remind = data.get('name_remind')
+    telegram_id = message.from_user.id
 
     time_remind = message.text.strip()
 
+    # Проверка формата
     try:
-        datetime.strptime(time_remind, '%Y-%m-%d %H:%M')
+        dt_naive = datetime.strptime(time_remind, '%Y-%m-%d %H:%M')
     except ValueError:
         await message.answer("❌ Invalid time format. Please enter in format: <b>YYYY-MM-DD HH:MM</b>",
                              parse_mode="HTML")
         return
 
-    await state.update_data(time_remind=time_remind)
+    # Получаем смещение пользователя
+    async with async_session() as session:
+        result = await session.execute(
+            select(User.timezone).where(User.telegram_id == telegram_id)
+        )
+        timezone_offset_str = result.scalar()
+        if timezone_offset_str is None:
+            await message.answer("❌ Timezone not set. Please register your timezone with /register.")
+            return
+        try:
+            timezone_offset = int(timezone_offset_str)
+        except ValueError:
+            await message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
+            return
+
+    # Локализуем время пользователя
+    tz = pytz.FixedOffset(timezone_offset * 60)
+    dt_local = tz.localize(dt_naive)
+
+    # Проверка, что время не в прошлом (локальное время пользователя)
+    now_local = datetime.now(tz)
+    if dt_local < now_local:
+        await message.answer("❌ The specified time has already passed. Please enter a future time.")
+        return
+
+    # Переводим в UTC
+    dt_utc = dt_local.astimezone(pytz.UTC)
+
+    await state.update_data(time_remind=dt_utc)
 
     new_text = (
         '<b>📌 Create a new reminder</b>\n\n'
@@ -271,7 +303,7 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
 
     data = await state.get_data()
     name_remind = data.get('name_remind')
-    time_remind = data.get('time_remind')
+    time_remind = data.get('time_remind')  # теперь это уже datetime в UTC
 
     message_remind = message.text
     await state.update_data(message_remind=message_remind)
@@ -299,7 +331,7 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
     await create_user_remind(
         telegram_id=telegram_id,
         title=name_remind,
-        reminder_time=time_remind,
+        reminder_time=time_remind,  # уже datetime в UTC
         message=message_remind
     )
 
