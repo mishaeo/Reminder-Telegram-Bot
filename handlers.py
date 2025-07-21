@@ -74,12 +74,30 @@ async def command_list(message: Message, state: FSMContext):
     telegram_id = message.from_user.id
     reminders = await get_user_reminders(telegram_id)
 
+    # Fetch user's timezone from DB
+    async with async_session() as session:
+        result = await session.execute(
+            select(User.timezone).where(User.telegram_id == telegram_id)
+        )
+        timezone_offset_str = result.scalar()
+        if timezone_offset_str is None:
+            await message.answer("❌ Timezone not set. Please register your timezone with /register.")
+            return
+        try:
+            timezone_offset = int(timezone_offset_str)
+        except ValueError:
+            await message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
+            return
+    tz = pytz.FixedOffset(timezone_offset * 60)
+
     if reminders:
         await state.update_data(reminder_ids=[r['id'] for r in reminders])
 
         response = "📋 Your reminders:\n\n"
         for i, r in enumerate(reminders, start=1):
-            response += f"{i}. 📌 {r['title']} — {r['reminder_time']}\n"
+            local_dt = r['reminder_time'].astimezone(tz)
+            local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
+            response += f"{i}. 📌 {r['title']} — {local_time_str}\n"
     else:
         response = "📋 Your reminders:\n\n"\
                    "🗒 You don't have any reminders yet."
@@ -93,6 +111,22 @@ async def command_show(callback: CallbackQuery, state: FSMContext):
     telegram_id = callback.from_user.id
     reminders = await get_user_reminders(telegram_id)
 
+    # Fetch user's timezone from DB
+    async with async_session() as session:
+        result = await session.execute(
+            select(User.timezone).where(User.telegram_id == telegram_id)
+        )
+        timezone_offset_str = result.scalar()
+        if timezone_offset_str is None:
+            await callback.message.answer("❌ Timezone not set. Please register your timezone with /register.")
+            return
+        try:
+            timezone_offset = int(timezone_offset_str)
+        except ValueError:
+            await callback.message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
+            return
+    tz = pytz.FixedOffset(timezone_offset * 60)
+
     if not reminders:
         await callback.message.answer("🗒 You don't have any reminders yet.")
         return
@@ -102,7 +136,9 @@ async def command_show(callback: CallbackQuery, state: FSMContext):
 
     response = "<b>📋 Your reminders:</b>\n\n"
     for i, r in enumerate(reminders, start=1):
-        response += f"{i}. 📌 {r['title']} — {r['reminder_time']}\n"
+        local_dt = r['reminder_time'].astimezone(tz)
+        local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
+        response += f"{i}. 📌 {r['title']} — {local_time_str}\n"
 
     await callback.message.answer(response)
     await callback.message.answer("Enter the number of the reminder you want to view:")
