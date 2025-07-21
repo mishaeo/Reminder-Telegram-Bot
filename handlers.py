@@ -120,10 +120,34 @@ async def handler_show(message: Message, state: FSMContext):
             raise ValueError
 
         reminder = reminders[index]
+        telegram_id = message.from_user.id
+
+        # Fetch user's timezone from DB
+        async with async_session() as session:
+            result = await session.execute(
+                select(User.timezone).where(User.telegram_id == telegram_id)
+            )
+            timezone_offset_str = result.scalar()
+            if timezone_offset_str is None:
+                await message.answer("❌ Timezone not set. Please register your timezone with /register.")
+                await state.clear()
+                return
+            try:
+                timezone_offset = int(timezone_offset_str)
+            except ValueError:
+                await message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
+                await state.clear()
+                return
+
+        # Convert UTC time to user's local time
+        utc_dt = reminder['reminder_time']
+        tz = pytz.FixedOffset(timezone_offset * 60)
+        local_dt = utc_dt.astimezone(tz)
+        local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
 
         response = (
             f"📌 <b>{reminder['title']}</b>\n"
-            f"⏰ <b>Time:</b> {reminder['reminder_time']}\n"
+            f"⏰ <b>Time:</b> {local_time_str}\n"
             f"💬 <b>Message:</b> {reminder['message']}"
         )
         await message.answer(response, parse_mode="HTML")

@@ -114,7 +114,7 @@ async def get_user_reminders(telegram_id: int) -> List[Dict[str, Any]]:
             {
                 "id": r.id,
                 "title": r.title,
-                "reminder_time": r.reminder_time.strftime("%Y-%m-%d %H:%M"),
+                "reminder_time": r.reminder_time,  # return as datetime, not string
                 "message": r.message
             }
             for r in reminders
