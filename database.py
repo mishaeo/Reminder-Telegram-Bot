@@ -71,6 +71,19 @@ async def create_user_remind(telegram_id: int, title: str, reminder_time, messag
         session.add(reminder)
         await session.commit()
 
+async def update_reminder_by_id(reminder_id: int, title: str, reminder_time, message: str):
+    async with async_session() as session:
+        result = await session.execute(
+            select(Reminder).where(Reminder.id == reminder_id)
+        )
+        reminder = result.scalar_one_or_none()
+
+        if reminder:
+            reminder.title = title
+            reminder.reminder_time = reminder_time.replace(second=0, microsecond=0)
+            reminder.message = message
+            await session.commit()
+
 async def create_or_update_user(telegram_id: int, timezone: str):
     async with async_session() as session:
         try:

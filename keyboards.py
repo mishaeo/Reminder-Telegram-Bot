@@ -12,6 +12,12 @@ remind_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     ]
 ])
 
+back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [
+        InlineKeyboardButton(text="⬅️ Back", callback_data="back_to_list")
+    ]
+])
+
 def create_utc_times_keyboard():
     now_utc = datetime.utcnow()
     offsets = list(range(-12, 12 + 1))
