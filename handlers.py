@@ -222,23 +222,22 @@ async def handler_delete(message: Message, state: FSMContext, bot: Bot):
         reminder_id = reminder_ids[index]
         await delete_reminder_by_id(reminder_id)
 
-        # Send a confirmation alert
-        await message.answer("✅ The reminder has been successfully removed.")
-
         # Update the original list message
         new_list_text = await get_reminders_list_text(telegram_id)
+        success_text = "✅ The reminder has been successfully removed.\n\n"
+        final_text = success_text + new_list_text
         if list_message_id:
             try:
                 await bot.edit_message_text(
                     chat_id=message.chat.id,
                     message_id=list_message_id,
-                    text=new_list_text,
+                    text=final_text,
                     reply_markup=kb.remind_keyboard
                 )
             except Exception:
-                await message.answer(new_list_text, reply_markup=kb.remind_keyboard)
+                await message.answer(final_text, reply_markup=kb.remind_keyboard)
         else:
-            await message.answer(new_list_text, reply_markup=kb.remind_keyboard)
+            await message.answer(final_text, reply_markup=kb.remind_keyboard)
 
 
     except (ValueError, IndexError):
@@ -641,23 +640,21 @@ async def handler_edit_message(message: Message, state: FSMContext, bot: Bot):
     )
     
     # Send a confirmation alert
-    await message.answer("✅ The reminder has been successfully updated.")
-    
-    # Go back to the main list by editing the original message
+    success_text = "✅ The reminder has been successfully updated.\n\n"
     final_list = await get_reminders_list_text(telegram_id)
+    final_text = success_text + final_list
     if list_message_id:
         try:
             await bot.edit_message_text(
                 chat_id=message.chat.id,
                 message_id=list_message_id,
-                text=final_list,
+                text=final_text,
                 parse_mode=ParseMode.HTML,
                 reply_markup=kb.remind_keyboard
             )
         except Exception:
-            # If editing fails (e.g., message too old), send a new one.
-            await message.answer(final_list, reply_markup=kb.remind_keyboard)
+            await message.answer(final_text, reply_markup=kb.remind_keyboard)
     else:
-        await message.answer(final_list, reply_markup=kb.remind_keyboard)
+        await message.answer(final_text, reply_markup=kb.remind_keyboard)
 
     await state.clear()
