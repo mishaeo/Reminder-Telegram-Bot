@@ -85,14 +85,7 @@ async def command_list(message: Message, state: FSMContext):
             select(User.timezone).where(User.telegram_id == telegram_id)
         )
         timezone_offset_str = result.scalar()
-        if timezone_offset_str is None:
-            await message.answer("❌ Timezone not set. Please register your timezone with /register.")
-            return
-        try:
-            timezone_offset = int(timezone_offset_str)
-        except ValueError:
-            await message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
-            return
+    timezone_offset = int(timezone_offset_str)
     tz = pytz.FixedOffset(timezone_offset * 60)
 
     if reminders:
@@ -122,14 +115,7 @@ async def command_show(callback: CallbackQuery, state: FSMContext):
             select(User.timezone).where(User.telegram_id == telegram_id)
         )
         timezone_offset_str = result.scalar()
-        if timezone_offset_str is None:
-            await callback.message.answer("❌ Timezone not set. Please register your timezone with /register.")
-            return
-        try:
-            timezone_offset = int(timezone_offset_str)
-        except ValueError:
-            await callback.message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
-            return
+    timezone_offset = int(timezone_offset_str)
     tz = pytz.FixedOffset(timezone_offset * 60)
 
     if not reminders:
@@ -169,16 +155,7 @@ async def handler_show(message: Message, state: FSMContext):
                 select(User.timezone).where(User.telegram_id == telegram_id)
             )
             timezone_offset_str = result.scalar()
-            if timezone_offset_str is None:
-                await message.answer("❌ Timezone not set. Please register your timezone with /register.")
-                await state.clear()
-                return
-            try:
-                timezone_offset = int(timezone_offset_str)
-            except ValueError:
-                await message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
-                await state.clear()
-                return
+        timezone_offset = int(timezone_offset_str)
 
         # Convert UTC time to user's local time
         utc_dt = reminder['reminder_time']
@@ -212,14 +189,7 @@ async def command_delete(callback: CallbackQuery, state: FSMContext):
             select(User.timezone).where(User.telegram_id == telegram_id)
         )
         timezone_offset_str = result.scalar()
-        if timezone_offset_str is None:
-            await callback.message.answer("❌ Timezone not set. Please register your timezone with /register.")
-            return
-        try:
-            timezone_offset = int(timezone_offset_str)
-        except ValueError:
-            await callback.message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
-            return
+    timezone_offset = int(timezone_offset_str)
     tz = pytz.FixedOffset(timezone_offset * 60)
 
     if not reminders:
@@ -332,14 +302,7 @@ async def handler_create_date(message: Message, state: FSMContext, bot: Bot):
             select(User.timezone).where(User.telegram_id == telegram_id)
         )
         timezone_offset_str = result.scalar()
-        if timezone_offset_str is None:
-            await message.answer("❌ Timezone not set. Please register your timezone with /register.")
-            return
-        try:
-            timezone_offset = int(timezone_offset_str)
-        except ValueError:
-            await message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
-            return
+    timezone_offset = int(timezone_offset_str)
 
     # Локализуем время пользователя
     tz = pytz.FixedOffset(timezone_offset * 60)
@@ -437,9 +400,6 @@ async def handle_timezone_callback(callback: CallbackQuery):
     await callback.answer()
 
     await create_or_update_user(telegram_id, user_timezone)
-
-
-
 
 @router.callback_query(F.data == "edit")
 async def command_edit(callback: CallbackQuery, state: FSMContext):
