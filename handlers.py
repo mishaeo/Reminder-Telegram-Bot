@@ -128,7 +128,10 @@ async def command_show(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text("🗒 You don't have any reminders yet.", reply_markup=kb.back_keyboard)
         return
 
-    await state.update_data(full_reminders=reminders)
+    await state.update_data(
+        full_reminders=reminders,
+        list_message_id=callback.message.message_id  # Explicitly update the message_id
+    )
     list_text = await get_reminders_list_text(telegram_id)
     prompt_text = "\n\nEnter the number of the reminder you want to view:"
     
@@ -191,7 +194,10 @@ async def command_delete(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text("🗒 You don't have any reminders yet.", reply_markup=kb.back_keyboard)
         return
 
-    await state.update_data(reminder_ids=[r['id'] for r in reminders])
+    await state.update_data(
+        reminder_ids=[r['id'] for r in reminders],
+        list_message_id=callback.message.message_id  # Explicitly update the message_id
+    )
     list_text = await get_reminders_list_text(telegram_id)
     prompt_text = "\n\nEnter the number of the reminder you want to delete:"
 
@@ -215,11 +221,25 @@ async def handler_delete(message: Message, state: FSMContext, bot: Bot):
 
         reminder_id = reminder_ids[index]
         await delete_reminder_by_id(reminder_id)
-        
+
+        # Send a confirmation alert
+        await message.answer("✅ The reminder has been successfully removed.")
+
+        # Update the original list message
         new_list_text = await get_reminders_list_text(telegram_id)
-        success_text = "✅ The reminder has been successfully removed."
-        
-        await bot.edit_message_text(chat_id=message.chat.id, message_id=list_message_id, text=new_list_text + "\n\n" + success_text, reply_markup=kb.remind_keyboard)
+        if list_message_id:
+            try:
+                await bot.edit_message_text(
+                    chat_id=message.chat.id,
+                    message_id=list_message_id,
+                    text=new_list_text,
+                    reply_markup=kb.remind_keyboard
+                )
+            except Exception:
+                await message.answer(new_list_text, reply_markup=kb.remind_keyboard)
+        else:
+            await message.answer(new_list_text, reply_markup=kb.remind_keyboard)
+
 
     except (ValueError, IndexError):
         list_text = await get_reminders_list_text(telegram_id)
@@ -620,37 +640,24 @@ async def handler_edit_message(message: Message, state: FSMContext, bot: Bot):
         message=message_remind
     )
     
-    # Get local time for final display
-    timezone_offset = data.get('timezone_offset')
-    tz = pytz.FixedOffset(timezone_offset * 60)
-    local_dt = time_remind_utc.astimezone(tz)
-    local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
-
-    final_text = (
-        '<b>✏️ Edit reminder</b>\n\n'
-        f'<b>✅ | 📝 Reminder name:</b>\n <b>{name_remind}</b>\n'
-        f'<b>✅ | ⏰ Time to receive reminder: </b>\n<b>{local_time_str}</b>\n'
-        f'<b>✅ | 💬 Reminder message: </b>\n<b>{message_remind}</b>\n\n'
-        '<b># Excellent, the reminder is updated. #</b>'
-    )
-    await bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=list_message_id,
-        text=final_text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=kb.back_keyboard
-    )
-    
-    # Send a confirmation message and then show the main list
+    # Send a confirmation alert
     await message.answer("✅ The reminder has been successfully updated.")
     
-    # Go back to the main list
+    # Go back to the main list by editing the original message
     final_list = await get_reminders_list_text(telegram_id)
-    await bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=list_message_id,
-        text=final_list,
-        parse_mode=ParseMode.HTML,
-        reply_markup=kb.remind_keyboard
-    )
+    if list_message_id:
+        try:
+            await bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=list_message_id,
+                text=final_list,
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb.remind_keyboard
+            )
+        except Exception:
+            # If editing fails (e.g., message too old), send a new one.
+            await message.answer(final_list, reply_markup=kb.remind_keyboard)
+    else:
+        await message.answer(final_list, reply_markup=kb.remind_keyboard)
+
     await state.clear()
