@@ -445,33 +445,35 @@ async def command_edit(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     telegram_id = callback.from_user.id
     reminders = await get_user_reminders(telegram_id)
-
+    # Получаем таймзону пользователя
     async with async_session() as session:
         result = await session.execute(
             select(User.timezone).where(User.telegram_id == telegram_id)
         )
         timezone_offset_str = result.scalar()
-
+        if timezone_offset_str is None:
+            await callback.message.answer("❌ Timezone not set. Please register your timezone with /register.")
+            return
+        try:
+            timezone_offset = int(timezone_offset_str)
+        except ValueError:
+            await callback.message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
+            return
     tz = pytz.FixedOffset(timezone_offset * 60)
     if not reminders:
         await callback.message.answer("🗒 You don't have any reminders yet.")
         return
-
     await state.update_data(reminder_ids=[r['id'] for r in reminders])
     await state.update_data(full_reminders=reminders)
-
     response = "<b>📋 Your reminders:</b>\n\n"
     for i, r in enumerate(reminders, start=1):
         local_dt = r['reminder_time'].astimezone(tz)
         local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
         response += f"{i}. 📌 {r['title']} — {local_time_str}\n"
-
     await callback.message.answer(response, parse_mode="HTML")
     await callback.message.answer("Enter the number of the reminder you want to edit:")
     await state.set_state(user_remind.edit_index)
 
-
-### here ###
 @router.message(user_remind.edit_index)
 async def handler_edit_select(message: Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
@@ -485,18 +487,27 @@ async def handler_edit_select(message: Message, state: FSMContext, bot: Bot):
         await state.update_data(editing_reminder_title=reminder['title'])
         await state.update_data(editing_reminder_time=reminder['reminder_time'])
         await state.update_data(editing_reminder_message=reminder['message'])
-
+        # Получаем таймзону пользователя
         telegram_id = message.from_user.id
         async with async_session() as session:
             result = await session.execute(
                 select(User.timezone).where(User.telegram_id == telegram_id)
             )
             timezone_offset_str = result.scalar()
-
+            if timezone_offset_str is None:
+                await message.answer("❌ Timezone not set. Please register your timezone with /register.")
+                await state.clear()
+                return
+            try:
+                timezone_offset = int(timezone_offset_str)
+            except ValueError:
+                await message.answer("❌ Invalid timezone value in your profile. Please re-register your timezone.")
+                await state.clear()
+                return
         tz = pytz.FixedOffset(timezone_offset * 60)
         local_dt = reminder['reminder_time'].astimezone(tz)
         local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
-
+        # Отправляем шаблон с предзаполненными полями
         sent_msg = await message.answer(
             '<b>✏️ Edit reminder</b>\n\n'
             f'<b>✅ | 📝 Reminder name:</b>\n <b>{reminder["title"]}</b>\n'
