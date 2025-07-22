@@ -19,6 +19,11 @@ class user_remind(StatesGroup):
     message_remind = State()
     delete_index = State()
     show_index = State()
+    ### new ###
+    edit_index = State()  # новое состояние для выбора напоминания для редактирования
+    edit_name = State()   # новое состояние для редактирования имени
+    edit_time = State()   # новое состояние для редактирования времени
+    edit_message = State()# новое состояние для редактирования сообщения
 
 router = Router()
 
@@ -432,6 +437,205 @@ async def handle_timezone_callback(callback: CallbackQuery):
     await callback.answer()
 
     await create_or_update_user(telegram_id, user_timezone)
+
+
+### new ###
+@router.callback_query(F.data == "edit")
+async def command_edit(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    telegram_id = callback.from_user.id
+    reminders = await get_user_reminders(telegram_id)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(User.timezone).where(User.telegram_id == telegram_id)
+        )
+        timezone_offset_str = result.scalar()
+
+    tz = pytz.FixedOffset(timezone_offset * 60)
+    if not reminders:
+        await callback.message.answer("🗒 You don't have any reminders yet.")
+        return
+
+    await state.update_data(reminder_ids=[r['id'] for r in reminders])
+    await state.update_data(full_reminders=reminders)
+
+    response = "<b>📋 Your reminders:</b>\n\n"
+    for i, r in enumerate(reminders, start=1):
+        local_dt = r['reminder_time'].astimezone(tz)
+        local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
+        response += f"{i}. 📌 {r['title']} — {local_time_str}\n"
+
+    await callback.message.answer(response, parse_mode="HTML")
+    await callback.message.answer("Enter the number of the reminder you want to edit:")
+    await state.set_state(user_remind.edit_index)
+
+
+### here ###
+@router.message(user_remind.edit_index)
+async def handler_edit_select(message: Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    reminders = data.get("full_reminders", [])
+    try:
+        index = int(message.text.strip()) - 1
+        if index < 0 or index >= len(reminders):
+            raise ValueError
+        reminder = reminders[index]
+        await state.update_data(editing_reminder_id=reminder['id'])
+        await state.update_data(editing_reminder_title=reminder['title'])
+        await state.update_data(editing_reminder_time=reminder['reminder_time'])
+        await state.update_data(editing_reminder_message=reminder['message'])
+
+        telegram_id = message.from_user.id
+        async with async_session() as session:
+            result = await session.execute(
+                select(User.timezone).where(User.telegram_id == telegram_id)
+            )
+            timezone_offset_str = result.scalar()
+
+        tz = pytz.FixedOffset(timezone_offset * 60)
+        local_dt = reminder['reminder_time'].astimezone(tz)
+        local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
+
+        sent_msg = await message.answer(
+            '<b>✏️ Edit reminder</b>\n\n'
+            f'<b>✅ | 📝 Reminder name:</b>\n <b>{reminder["title"]}</b>\n'
+            f'<b>✅ | ⏰ Time to receive reminder: </b>\n<b>{local_time_str}</b>\n'
+            f'<b>✅ | 💬 Reminder message: </b>\n<b>{reminder["message"]}</b>\n\n'
+            '<b># Enter a new name for the reminder (or send the same to keep it). #</b>',
+            parse_mode=ParseMode.HTML
+        )
+        await state.update_data(reminder_message_id=sent_msg.message_id)
+        await state.set_state(user_remind.edit_name)
+    except (ValueError, IndexError):
+        await message.answer("❌ Invalid number. Try again.")
+        await state.clear()
+
+@router.message(user_remind.edit_name)
+async def handler_edit_name(message: Message, state: FSMContext, bot: Bot):
+    name_remind = message.text
+    if len(name_remind) > 20:
+        await message.answer("❌ The reminder name must not exceed 20 characters. Please enter a shorter name.")
+        return
+    data = await state.get_data()
+    reminder_message_id = data.get("reminder_message_id")
+    await state.update_data(editing_reminder_title=name_remind)
+    # Получаем текущее время и сообщение
+    telegram_id = message.from_user.id
+    # Получаем локальное время из state
+    editing_reminder_time = data.get('editing_reminder_time')
+    # Получаем таймзону пользователя
+    async with async_session() as session:
+        result = await session.execute(
+            select(User.timezone).where(User.telegram_id == telegram_id)
+        )
+        timezone_offset_str = result.scalar()
+        timezone_offset = int(timezone_offset_str)
+    tz = pytz.FixedOffset(timezone_offset * 60)
+    local_dt = editing_reminder_time.astimezone(tz)
+    local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
+    editing_reminder_message = data.get('editing_reminder_message')
+    new_text = (
+        '<b>✏️ Edit reminder</b>\n\n'
+        f'<b>✅ | 📝 Reminder name:</b>\n <b>{name_remind}</b>\n'
+        f'<b>✅ | ⏰ Time to receive reminder: </b>\n<b>{local_time_str}</b>\n'
+        f'<b>✅ | 💬 Reminder message: </b>\n<b>{editing_reminder_message}</b>\n\n'
+        '<b># Enter a new time for the reminder. Example: YYYY-MM-DD HH:MM #</b>'
+    )
+    try:
+        await bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=reminder_message_id,
+            text=new_text,
+            parse_mode=ParseMode.HTML
+        )
+    except Exception:
+        await message.answer("❗ Failed to update message.")
+    await state.set_state(user_remind.edit_time)
+
+@router.message(user_remind.edit_time)
+async def handler_edit_time(message: Message, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    reminder_message_id = data.get("reminder_message_id")
+    name_remind = data.get('editing_reminder_title')
+    telegram_id = message.from_user.id
+    time_remind = message.text.strip()
+    # Проверка формата
+    try:
+        dt_naive = datetime.strptime(time_remind, '%Y-%m-%d %H:%M')
+    except ValueError:
+        await message.answer("❌ Invalid time format. Please enter in format: <b>YYYY-MM-DD HH:MM</b>",
+                             parse_mode="HTML")
+        return
+    # Получаем смещение пользователя
+    async with async_session() as session:
+        result = await session.execute(
+            select(User.timezone).where(User.telegram_id == telegram_id)
+        )
+        timezone_offset_str = result.scalar()
+        timezone_offset = int(timezone_offset_str)
+    tz = pytz.FixedOffset(timezone_offset * 60)
+    dt_local = tz.localize(dt_naive)
+    now_local = datetime.now(tz)
+    if dt_local < now_local:
+        await message.answer("❌ The specified time has already passed. Please enter a future time.")
+        return
+    dt_utc = dt_local.astimezone(pytz.UTC)
+    await state.update_data(editing_reminder_time=dt_utc)
+    editing_reminder_message = data.get('editing_reminder_message')
+    new_text = (
+        '<b>✏️ Edit reminder</b>\n\n'
+        f'<b>✅ | 📝 Reminder name:</b>\n <b>{name_remind}</b>\n'
+        f'<b>✅ | ⏰ Time to receive reminder: </b>\n<b>{time_remind}</b>\n'
+        f'<b>✅ | 💬 Reminder message: </b>\n<b>{editing_reminder_message}</b>\n\n'
+        '<b># Enter a new message for the reminder. #</b>'
+    )
+    try:
+        await bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=reminder_message_id,
+            text=new_text,
+            parse_mode=ParseMode.HTML
+        )
+    except Exception:
+        await message.answer("❗ Failed to update message.")
+    await state.set_state(user_remind.edit_message)
+
+@router.message(user_remind.edit_message)
+async def handler_edit_message(message: Message, state: FSMContext, bot: Bot):
+    telegram_id = message.from_user.id
+    data = await state.get_data()
+    reminder_message_id = data.get("reminder_message_id")
+    name_remind = data.get('editing_reminder_title')
+    time_remind = data.get('editing_reminder_time')
+    message_remind = message.text
+    await state.update_data(editing_reminder_message=message_remind)
+    new_text = (
+        '<b>✏️ Edit reminder</b>\n\n'
+        f'<b>✅ | 📝 Reminder name:</b>\n <b>{name_remind}</b>\n'
+        f'<b>✅ | ⏰ Time to receive reminder: </b>\n<b>{time_remind}</b>\n'
+        f'<b>✅ | 💬 Reminder message: </b>\n<b>{message_remind}</b>\n\n'
+        '<b># Excellent, the reminder is updated. #</b>'
+    )
+    try:
+        await bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=reminder_message_id,
+            text=new_text,
+            parse_mode=ParseMode.HTML
+        )
+    except Exception:
+        await message.answer("❗ Failed to update message.")
+    editing_reminder_id = data.get('editing_reminder_id')
+    from database import update_reminder_by_id
+    await update_reminder_by_id(
+        reminder_id=editing_reminder_id,
+        title=name_remind,
+        reminder_time=time_remind,
+        message=message_remind
+    )
+    await message.answer("✅ The reminder has been successfully updated.")
+    await state.clear()
 
 
 

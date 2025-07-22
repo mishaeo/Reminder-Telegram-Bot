@@ -156,4 +156,15 @@ async def is_registered(telegram_id: int) -> bool:
         user = result.scalar_one_or_none()
         return user is not None
 
+async def update_reminder_by_id(reminder_id, title, reminder_time, message):
+    async with async_session() as session:
+        await session.execute(
+            User.__table__.update().where(User.id == reminder_id).values(
+                title=title,
+                reminder_time=reminder_time,
+                message=message
+            )
+        )
+        await session.commit()
+
 
