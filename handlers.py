@@ -224,8 +224,8 @@ async def handler_delete(message: Message, state: FSMContext, bot: Bot):
 
         # Update the original list message
         new_list_text = await get_reminders_list_text(telegram_id)
-        success_text = "✅ The reminder has been successfully removed.\n\n"
-        final_text = success_text + new_list_text
+        success_text = "✅ The reminder has been successfully removed."
+        final_text = new_list_text + "\n\n" + success_text
         if list_message_id:
             try:
                 await bot.edit_message_text(
@@ -387,7 +387,6 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
     reminder_message_id = data.get("reminder_message_id")
     name_remind = data.get('name_remind')
     time_remind = data.get('time_remind')
-    time_remind_str = data.get('time_remind_str')
     message_remind = message.text
 
     await create_user_remind(
@@ -396,21 +395,25 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
         reminder_time=time_remind,
         message=message_remind
     )
-    
-    new_text = (
-        '<b>📌 Create a new reminder</b>\n\n'
-        f'<b>✅ | 📝 Reminder name:</b> <b>{name_remind}</b>\n'
-        f'<b>✅ | ⏰ Time to receive reminder: </b> <b>{time_remind_str}</b>\n'
-        f'<b>✅ | 💬 Reminder message: </b> <b>{message_remind}</b>\n\n'
-        '<b># Excellent, the reminder is ready. #</b>'
-    )
-    await bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=reminder_message_id,
-        text=new_text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=kb.back_keyboard # Allows to go back to list
-    )
+
+    # Go back to the main list with a success message
+    new_list_text = await get_reminders_list_text(telegram_id)
+    success_text = "✅ The reminder has been successfully created."
+    final_text = new_list_text + "\n\n" + success_text
+
+    if reminder_message_id:
+        try:
+            await bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=reminder_message_id,
+                text=final_text,
+                reply_markup=kb.remind_keyboard
+            )
+        except Exception:
+            await message.answer(final_text, reply_markup=kb.remind_keyboard)
+    else:
+        await message.answer(final_text, reply_markup=kb.remind_keyboard)
+
     await state.clear()
 
 # Command registration
@@ -639,10 +642,10 @@ async def handler_edit_message(message: Message, state: FSMContext, bot: Bot):
         message=message_remind
     )
     
-    # Send a confirmation alert
-    success_text = "✅ The reminder has been successfully updated.\n\n"
+    # Go back to the main list by editing the original message
     final_list = await get_reminders_list_text(telegram_id)
-    final_text = success_text + final_list
+    success_text = "✅ The reminder has been successfully updated."
+    final_text = final_list + "\n\n" + success_text
     if list_message_id:
         try:
             await bot.edit_message_text(
@@ -653,8 +656,8 @@ async def handler_edit_message(message: Message, state: FSMContext, bot: Bot):
                 reply_markup=kb.remind_keyboard
             )
         except Exception:
-            await message.answer(final_text, reply_markup=kb.remind_keyboard)
+            await message.answer(final_text, reply_markup=kb.remind_keyboard, parse_mode=ParseMode.HTML)
     else:
-        await message.answer(final_text, reply_markup=kb.remind_keyboard)
+        await message.answer(final_text, reply_markup=kb.remind_keyboard, parse_mode=ParseMode.HTML)
 
     await state.clear()
