@@ -439,7 +439,7 @@ async def handle_timezone_callback(callback: CallbackQuery):
     await create_or_update_user(telegram_id, user_timezone)
 
 
-### new ###
+
 @router.callback_query(F.data == "edit")
 async def command_edit(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -621,10 +621,27 @@ async def handler_edit_message(message: Message, state: FSMContext, bot: Bot):
     time_remind = data.get('editing_reminder_time')
     message_remind = message.text
     await state.update_data(editing_reminder_message=message_remind)
+
+    # Convert UTC time to user's local time for display
+    async with async_session() as session:
+        result = await session.execute(
+            select(User.timezone).where(User.telegram_id == telegram_id)
+        )
+        timezone_offset_str = result.scalar()
+        if timezone_offset_str is None:
+            # Fallback or error
+            await message.answer("❌ Could not retrieve your timezone. Please /register again.")
+            await state.clear()
+            return
+        timezone_offset = int(timezone_offset_str)
+    tz = pytz.FixedOffset(timezone_offset * 60)
+    local_dt = time_remind.astimezone(tz)
+    local_time_str = local_dt.strftime("%Y-%m-%d %H:%M")
+
     new_text = (
         '<b>✏️ Edit reminder</b>\n\n'
         f'<b>✅ | 📝 Reminder name:</b>\n <b>{name_remind}</b>\n'
-        f'<b>✅ | ⏰ Time to receive reminder: </b>\n<b>{time_remind}</b>\n'
+        f'<b>✅ | ⏰ Time to receive reminder: </b>\n<b>{local_time_str}</b>\n'
         f'<b>✅ | 💬 Reminder message: </b>\n<b>{message_remind}</b>\n\n'
         '<b># Excellent, the reminder is updated. #</b>'
     )
@@ -637,10 +654,13 @@ async def handler_edit_message(message: Message, state: FSMContext, bot: Bot):
         )
     except Exception:
         await message.answer("❗ Failed to update message.")
+
     editing_reminder_id = data.get('editing_reminder_id')
-    from database import update_reminder_by_id
-    await update_reminder_by_id(
-        reminder_id=editing_reminder_id,
+
+    await delete_reminder_by_id(editing_reminder_id)
+
+    await create_user_remind(
+        telegram_id=telegram_id,
         title=name_remind,
         reminder_time=time_remind,
         message=message_remind
