@@ -30,7 +30,7 @@ async def reminder_cleaner(bot: Bot):
                         continue
                     await bot.send_message(
                         int(reminder.user.telegram_id),
-                        f"🔔 Напоминание: {reminder.title}\n{reminder.message or ''}"
+                        f"🔔 Reminder: {reminder.title}\n{reminder.message or ''}"
                     )
                     await delete_reminder_by_id(reminder.id)
                     print(f"[Cleaner] Reminder ID {reminder.id} sent and deleted.")

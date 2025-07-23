@@ -347,13 +347,14 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
 
 @router.message(Command('register'))
 async def command_register(message: Message, state: FSMContext):
-    await message.answer('Please select your time zone from the list (you need to select the same time as you are currently on).', reply_markup=kb.utc_times_keyboard)
+    await message.answer('Please select your time zone from the list (you need to select the same time as you are currently on)🕒', reply_markup=kb.utc_times_keyboard)
 
 @router.callback_query(F.data.regexp(r"^[+-]?\d{1,2}$"))
 async def handle_timezone_callback(callback: CallbackQuery):
     user_timezone = callback.data
     telegram_id = callback.from_user.id
-    await callback.message.answer(f"Great! Your timezone: UTC{user_timezone}")
+    await callback.message.answer(f"✅Great! You are now registered and can start using the bot. If you need to change your time zone, simply run the /register command again.\n "
+                                  f"Your time zone at the moment UTC{user_timezone}")
     await callback.answer()
     await create_or_update_user(telegram_id, user_timezone)
 
