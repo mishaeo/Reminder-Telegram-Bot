@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 remind_keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -19,21 +19,23 @@ back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 def create_utc_times_keyboard():
-    now_utc = datetime.utcnow()
-    offsets = list(range(-12, 12 + 1))
+    now_utc = datetime.now(timezone.utc)  # aware datetime
+    offsets = list(range(-12, 13))
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
     row = []
+
     for i, offset in enumerate(offsets):
-        local_time = now_utc + timedelta(hours=offset)
+        offset_tz = timezone(timedelta(hours=offset))
+        local_time = now_utc.astimezone(offset_tz)
         time_str = local_time.strftime("%H:%M")
         sign = f"+{offset}" if offset >= 0 else f"{offset}"
         tz_text = f"UTC{sign}({time_str})"
-        callback_data = sign
-        button = InlineKeyboardButton(text=tz_text, callback_data=callback_data)
+        button = InlineKeyboardButton(text=tz_text, callback_data=sign)
         row.append(button)
         if len(row) == 3:
             keyboard.inline_keyboard.append(row)
             row = []
+
     if row:
         keyboard.inline_keyboard.append(row)
     return keyboard
