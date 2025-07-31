@@ -39,5 +39,3 @@ def create_utc_times_keyboard():
     if row:
         keyboard.inline_keyboard.append(row)
     return keyboard
-
-utc_times_keyboard = create_utc_times_keyboard()

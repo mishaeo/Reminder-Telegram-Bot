@@ -5,7 +5,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
-from typing import Callable, Dict, Any, Coroutine
+from typing import Callable, Dict, Any
 import re
 
 from database import create_user_remind, get_user_reminders, delete_reminder_by_id, create_or_update_user, is_registered, async_session, User, update_reminder_by_id
@@ -347,7 +347,7 @@ async def handler_create_message(message: Message, state: FSMContext, bot: Bot):
 
 @router.message(Command('register'))
 async def command_register(message: Message, state: FSMContext):
-    await message.answer('Please select your time zone from the list (you need to select the same time as you are currently on)🕒', reply_markup=kb.utc_times_keyboard)
+    await message.answer('Please select your time zone from the list (you need to select the same time as you are currently on)🕒', reply_markup=kb.create_utc_times_keyboard())
 
 @router.callback_query(F.data.regexp(r"^[+-]?\d{1,2}$"))
 async def handle_timezone_callback(callback: CallbackQuery):
